@@ -1,0 +1,42 @@
+name: Daily Morning Radio
+on:
+  workflow_dispatch:
+  schedule:
+    # JST 06:40 = UTC 21:40 on previous day.
+    - cron: '40 21 * * *'
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+concurrency:
+  group: radio-pages
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build public episode
+        run: python scripts/generate.py
+      - name: Commit current episode
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git add site/episode.json
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: update morning episode"
+            git push
+          fi
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - name: Deploy Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
