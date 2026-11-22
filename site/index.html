@@ -36,7 +36,7 @@ a{color:#f2b27a}select{background:#26334a;color:white;border:1px solid #475972;p
 <section class="box"><h2>おすすめ音楽</h2><div id="songs"><p class="muted">準備中</p></div></section>
 <section class="box"><h2>放送原稿</h2><p id="transcript" style="white-space:pre-wrap"></p></section>
 <section class="box"><h2>ニュース・天気の出典</h2><div id="sources"></div></section>
-<p class="note">このプレーヤーは毎朝生成された日本語MP3を再生します。iPhoneでは再生開始時にタップしてください。楽曲はApple Musicアプリ上で再生します。個人のGoogleカレンダーやToDoは未接続で、予定がないとは断定しません。</p>
+<p class="note">このプレーヤーは毎朝生成された日本語MP3を再生します。iPhoneでは再生開始時にタップしてください。楽曲の公式試聴が提供されている場合は、この画面で短い試聴ができます。フル再生はApple Musicアプリで行います。個人のGoogleカレンダーやToDoは未接続で、予定がないとは断定しません。</p>
 </main>
 <script>
 'use strict';
@@ -69,7 +69,25 @@ function render(){
    const p=document.createElement('p');p.textContent=song.reason;p.className='muted';
    const link=document.createElement('a');link.textContent='♫ Apple Musicで聴く・お気に入り登録';
    if(typeof song.url==='string'&&song.url.startsWith('https://music.apple.com/')){link.href=song.url;link.target='_blank';link.rel='noopener noreferrer'}
-   div.append(title,p,link);$('songs').appendChild(div);
+   div.append(title,p,link);
+   if(typeof song.preview_url==='string' && /^https:\/\//.test(song.preview_url)) {
+     const wrap=document.createElement('div');wrap.style.marginTop='14px';
+     const badge=document.createElement('p');badge.className='note';
+     badge.textContent='公式30秒試聴（provided courtesy of iTunes）。楽曲紹介のためのストリーミングです。';
+     const preview=document.createElement('audio');
+     preview.controls=true;preview.preload='none';preview.style.width='100%';
+     preview.src=song.preview_url;
+     preview.addEventListener('play',()=>{player.pause();document.querySelectorAll('.song audio').forEach(x=>{if(x!==preview)x.pause()})});
+     const store=document.createElement('a');store.textContent='Appleでこの楽曲を見る';
+     store.href=(typeof song.store_url==='string'&&song.store_url.startsWith('https://'))?song.store_url:song.url;
+     store.target='_blank';store.rel='noopener noreferrer';
+     wrap.append(badge,preview,store);div.appendChild(wrap);
+   } else {
+     const note=document.createElement('p');note.className='note';
+     note.textContent='この曲の公式試聴は現在取得できません。Apple Musicでフル再生できます。';
+     div.appendChild(note);
+   }
+   $('songs').appendChild(div);
   }
   $('sources').replaceChildren();
   for(const item of [...(episode.sources||[]),...(episode.news||[]).map(n=>({name:n.source+'：'+n.title,url:n.url}))]){
