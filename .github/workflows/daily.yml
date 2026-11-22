@@ -30,6 +30,10 @@ jobs:
           python-version: '3.12'
       - name: Build public episode
         run: python scripts/generate.py
+      - name: Install free TTS generator
+        run: python -m pip install edge-tts
+      - name: Generate actual Japanese MP3
+        run: python scripts/audio.py
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
