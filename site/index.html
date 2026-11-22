@@ -28,7 +28,7 @@ a{color:#f2b27a}select{background:#26334a;color:white;border:1px solid #475972;p
 <p class="muted" id="date">最新の放送を取得しています。</p>
 <section class="box" aria-label="プレーヤー">
 <div class="row"><div><small class="muted">ON AIR</small><h2 id="chapterTitle">番組の準備中</h2></div><label class="muted">速度 <select id="speed"><option value="0.85">0.85</option><option value="1" selected>1.0</option><option value="1.15">1.15</option><option value="1.3">1.3</option></select></label></div>
-<div class="controls"><button id="prev" aria-label="前の章">❮❮</button><button id="play" class="primary" aria-label="再生" disabled>▶</button><button id="next" aria-label="次の章">❯❯</button></div>
+<div class="controls"><button id="prev" aria-label="15秒戻る">❮❮</button><button id="play" class="primary" aria-label="再生" disabled>▶</button><button id="next" aria-label="30秒進む">❯❯</button></div>
 <p class="meta" id="status" aria-live="polite">番組を読み込んでいます</p>
 <div id="musicNotice" class="hidden line"><p><strong>ここでミュージックタイム。</strong>下の曲をApple Musicで再生して、聴き終えたら「番組に戻る」を押してください。</p><button class="primary" id="resume">番組に戻る ▶</button></div>
 </section>
@@ -36,60 +36,72 @@ a{color:#f2b27a}select{background:#26334a;color:white;border:1px solid #475972;p
 <section class="box"><h2>おすすめ音楽</h2><div id="songs"><p class="muted">準備中</p></div></section>
 <section class="box"><h2>放送原稿</h2><p id="transcript" style="white-space:pre-wrap"></p></section>
 <section class="box"><h2>ニュース・天気の出典</h2><div id="sources"></div></section>
-<p class="note">このプレーヤーは無料の端末内日本語音声（Web Speech API）を利用します。iPhoneでは再生開始時のタップが必要で、バックグラウンド・画面ロック時の連続読み上げは保証されません。楽曲はApple Musicアプリ上で再生します。個人のGoogleカレンダーやToDoは未接続で、予定がないとは断定しません。</p>
+<p class="note">このプレーヤーは毎朝生成された日本語MP3を再生します。iPhoneでは再生開始時にタップしてください。楽曲はApple Musicアプリ上で再生します。個人のGoogleカレンダーやToDoは未接続で、予定がないとは断定しません。</p>
 </main>
 <script>
 'use strict';
-const $=id=>document.getElementById(id), synth=window.speechSynthesis;
-let episode=null,chapter=0,playing=false,token=0,voice=null,musicBreak=false;
-function status(s){$('status').textContent=s}
+const $=id=>document.getElementById(id);
+let episode, chapter=0;
+const player=new Audio();
+player.preload='metadata';
+player.playsInline=true;
+player.addEventListener('play',()=>{$('play').textContent='Ⅱ';$('status').textContent='日本語音声を再生中'});
+player.addEventListener('pause',()=>{$('play').textContent='▶'});
+player.addEventListener('ended',()=>{$('status').textContent='今日の放送が終了しました';$('play').textContent='▶'});
+player.addEventListener('error',()=>{$('status').textContent='音声ファイルを再生できません。ページを更新するか、音声ファイルのリンクを開いてください'});
 function render(){
- if(!episode)return;
- $('date').textContent=episode.date+' の放送　｜　更新: '+new Date(episode.generated_at).toLocaleString('ja-JP');
- $('badge').textContent=episode.status==='setup_required'?'初回配信待ち':'公開中';
- const s=episode.sections[chapter];$('chapterTitle').textContent=s.title;$('transcript').textContent=s.text;
- $('chapters').replaceChildren();
- episode.sections.forEach((x,i)=>{const b=document.createElement('button');b.className='chapter'+(i===chapter?' active':'');b.textContent=String(i+1).padStart(2,'0')+'　'+x.title;b.onclick=()=>go(i);$('chapters').append(b)});
- $('songs').replaceChildren();for(const x of episode.songs||[]){
-   const d=document.createElement('div');d.className='song';
-   const h=document.createElement('strong');h.textContent=x.artist+' — '+x.title;d.append(h);
-   const p=document.createElement('p');p.className='muted';p.textContent=x.reason;d.append(p);
-   const a=document.createElement('a');a.textContent='♫ Apple Musicで聴く・お気に入りに追加';
-   if(/^https:\/\/music\.apple\.com\//.test(x.url||'')){a.href=x.url;a.target='_blank';a.rel='noopener noreferrer'}
-   d.append(a);$('songs').append(d)
+  if(!episode)return;
+  $('date').textContent=episode.date+' の放送　｜　更新：'+new Date(episode.generated_at).toLocaleString('ja-JP');
+  $('badge').textContent='音声版';
+  $('chapterTitle').textContent='今日のラジオ番組';
+  $('chapters').replaceChildren();
+  episode.sections.forEach((s,i)=>{
+   const b=document.createElement('button'); b.className='chapter';
+   b.textContent=String(i+1).padStart(2,'0')+'　'+s.title;
+   b.addEventListener('click',()=>{chapter=i;$('transcript').textContent=s.text;$('status').textContent='原稿の表示を切り替えました。音声は一続きで再生されます。'});
+   $('chapters').appendChild(b);
+  });
+  $('transcript').textContent=episode.sections.map(s=>s.title+'\n'+s.text).join('\n\n');
+  $('songs').replaceChildren();
+  for(const song of episode.songs||[]){
+   const div=document.createElement('div');div.className='song';
+   const title=document.createElement('strong');title.textContent=song.artist+' — '+song.title;
+   const p=document.createElement('p');p.textContent=song.reason;p.className='muted';
+   const link=document.createElement('a');link.textContent='♫ Apple Musicで聴く・お気に入り登録';
+   if(typeof song.url==='string'&&song.url.startsWith('https://music.apple.com/')){link.href=song.url;link.target='_blank';link.rel='noopener noreferrer'}
+   div.append(title,p,link);$('songs').appendChild(div);
+  }
+  $('sources').replaceChildren();
+  for(const item of [...(episode.sources||[]),...(episode.news||[]).map(n=>({name:n.source+'：'+n.title,url:n.url}))]){
+    if(typeof item.url!=='string'||!item.url.startsWith('https://'))continue;
+    const p=document.createElement('p'),a=document.createElement('a');
+    a.textContent=item.name;a.href=item.url;a.target='_blank';a.rel='noopener noreferrer';p.appendChild(a);$('sources').appendChild(p);
+  }
+}
+$('play').addEventListener('click',async()=>{
+ if(!episode?.audio_url)return;
+ if(player.paused){try{await player.play()}catch(e){$('status').textContent='再生できませんでした：'+e.message+'。音声ファイルの直接再生をお試しください。'}}
+ else player.pause();
+});
+$('prev').addEventListener('click',()=>{player.currentTime=Math.max(0,player.currentTime-15)});
+$('next').addEventListener('click',()=>{if(Number.isFinite(player.duration))player.currentTime=Math.min(player.duration,player.currentTime+30)});
+$('speed').addEventListener('change',()=>{player.playbackRate=Number($('speed').value)});
+$('resume').addEventListener('click',()=>player.play());
+fetch('./episode.json?v='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw Error('番組データが見つかりません');return r.json()}).then(data=>{
+ episode=data;if(!Array.isArray(data.sections)||!data.sections.length)throw Error('番組データが不正です');
+ render();
+ if(typeof data.audio_url!=='string'||!/^broadcast\.mp3$/.test(data.audio_url)){
+   $('status').textContent='音声ファイルがまだ生成されていません。GitHub Actionsの完了をご確認ください。';return;
  }
- $('sources').replaceChildren();
- const sources=[...(episode.sources||[]),...(episode.news||[]).map(x=>({name:x.source+'：'+x.title,url:x.url}))];
- for(const x of sources){if(!/^https:\/\//.test(x.url||''))continue;const p=document.createElement('p');const a=document.createElement('a');a.href=x.url;a.target='_blank';a.rel='noopener noreferrer';a.textContent=x.name;p.append(a);$('sources').append(p)}
-}
-function stop(){token++;playing=false;musicBreak=false; if(synth)synth.cancel();$('play').textContent='▶';$('musicNotice').classList.add('hidden')}
-function selectVoice(){if(!synth)return;let voices=synth.getVoices();voice=voices.find(v=>v.lang.startsWith('ja')&&/Kyoko|Otoya|Siri|日本語/i.test(v.name))||voices.find(v=>v.lang.startsWith('ja'))||null}
-if(synth){selectVoice();synth.addEventListener?.('voiceschanged',selectVoice)}
-function go(n){if(!episode)return;stop();chapter=Math.max(0,Math.min(episode.sections.length-1,n));render();readChapter()}
-function readChapter(){
- if(!episode||!synth)return status('このブラウザは読み上げに対応していません');
- synth.cancel();let seq=++token;const s=episode.sections[chapter];
- const u=new SpeechSynthesisUtterance(s.text);u.lang='ja-JP';u.rate=Number($('speed').value);u.pitch=1;u.volume=1;
- if(voice)u.voice=voice;
- u.onstart=()=>{if(seq!==token)return;playing=true;$('play').textContent='Ⅱ';status('読み上げ中')};
- u.onerror=e=>{if(seq!==token)return;playing=false;$('play').textContent='▶';status('読み上げを続けられませんでした: '+e.error)};
- u.onend=()=>{if(seq!==token)return;playing=false;$('play').textContent='▶';
-   if(s.music_break){musicBreak=true;$('musicNotice').classList.remove('hidden');status('楽曲はリンク先で再生してください')}else if(chapter<episode.sections.length-1){chapter++;render();readChapter()}else status('今日の放送は終了しました')};
- synth.speak(u);status('読み上げの開始を待っています');
-}
-$('play').onclick=()=>{if(!episode)return;if(!synth)return status('このブラウザでは音声読み上げが使えません');
- if(synth.paused){synth.resume();playing=true;$('play').textContent='Ⅱ';return}
- if(playing&&synth.speaking){synth.pause();playing=false;$('play').textContent='▶';status('一時停止中');return}
- if(musicBreak){$('musicNotice').classList.remove('hidden');return}
- readChapter()};
-$('prev').onclick=()=>go(chapter-1);$('next').onclick=()=>go(chapter+1);
-$('resume').onclick=()=>go(chapter+1);
-$('speed').onchange=()=>{if(playing)readChapter()};
-document.addEventListener('visibilitychange',()=>{if(document.hidden&&playing)status('画面ロック時は再生が停止する場合があります')});
-fetch('./episode.json?ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw Error('番組データ未公開');return r.json()}).then(x=>{
- if(!Array.isArray(x.sections)||!x.sections.length)throw Error('番組データ形式が不正です');
- episode=x;render();$('play').disabled=!synth;status(x.status==='setup_required'?'初回の番組生成がまだです':'▶ を押すと日本語で読み上げます');
- if(x.warnings?.length)status('一部データの取得に失敗: '+x.warnings.join(' / '));
-}).catch(e=>status('番組を読み込めません: '+e.message));
+ const audioUrl='./'+data.audio_url+'?v='+encodeURIComponent(data.generated_at||'');
+ player.src=audioUrl;
+ $('play').disabled=false;
+ $('status').textContent='▶ を押すと実際のMP3音声が再生されます';
+ const direct=document.createElement('p'),a=document.createElement('a');
+ a.href=audioUrl;a.textContent='音が出ない場合：MP3を直接開いて再生';a.target='_blank';a.rel='noopener noreferrer';
+ direct.appendChild(a);$('status').after(direct);
+ const native=document.createElement('audio');native.controls=true;native.preload='metadata';native.src=audioUrl;
+ native.style.width='100%';native.style.marginTop='14px';$('status').after(native);
+}).catch(e=>{$('status').textContent='番組を読み込めませんでした：'+e.message});
 </script>
 </body></html>
