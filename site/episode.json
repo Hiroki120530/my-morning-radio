@@ -1,13 +1,170 @@
 {
-  "date": "準備中",
-  "generated_at": "",
+  "date": "2026-11-23",
+  "generated_at": "2026-11-23T02:39:53.044083+09:00",
   "sections": [
     {
-      "title": "番組の準備中",
-      "text": "GitHub Actionsから初回の番組生成を実行すると、最新の原稿に切り替わります。"
+      "title": "オープニング",
+      "text": "おはようございます。2026年11月23日、月曜日。マイ・モーニング・ラジオのお時間です。川口と品川のお天気、注目ニュース、今日の予定、そしておすすめ音楽をお届けします。"
+    },
+    {
+      "title": "川口・品川の天気",
+      "text": "川口市です。最低気温は4度、最高気温は13度。7時は快晴。気温4度。降水確率0パーセント。12時は快晴。気温12度。降水確率0パーセント。18時は快晴。気温11度。降水確率0パーセント。21時は快晴。気温11度。降水確率0パーセント。雨の可能性は比較的小さそうです。品川区です。最低気温は6度、最高気温は13度。7時は快晴。気温6度。降水確率0パーセント。12時は快晴。気温11度。降水確率0パーセント。18時は快晴。気温12度。降水確率0パーセント。21時は晴れ。気温12度。降水確率0パーセント。雨の可能性は比較的小さそうです。朝晩の寒暖差や風に合わせて服装を調整してください。気象警報・注意報は取得していないため、必要な場合は気象庁をご確認ください。"
+    },
+    {
+      "title": "今日のニュース",
+      "text": "続いてニュースです。ニュース配信サービスの見出しを紹介します。記事本文を検証した解説ではないので、詳しくはリンク先をご覧ください。1件目。「平成」の記録、「生かさねば」 写真とノート、欠かせぬ資料に 72歳建築士、2度目の首里城復元・沖縄 - Yahoo!ニュース。配信元はYahoo!ニュースです。2件目。「連続企業爆破事件」益永利明死刑囚が東京拘置所で死亡…１９７４年の三菱重工ビル爆破事件では８人死亡・１６５人重軽傷 - 読売新聞。配信元は読売新聞です。3件目。玉木氏、文科相は「問責に値」 立民幹事長、高市首相の任命責任指摘 - 時事ドットコム。配信元は時事ドットコムです。4件目。米大統領側 訪日時のオバマ氏やゆ - Yahoo!ニュース。配信元はYahoo!ニュースです。5件目。24日は全国的に雨 前線通過時は雨脚が強まり雷雨になる所も 北日本は暴風のおそれ(気象予報士 堂本 幸代) - tenki.jp。配信元はtenki.jpです。"
+    },
+    {
+      "title": "今日の予定とタスク",
+      "text": "現在、Googleカレンダーやタスクアプリの自動連携は設定されていません。今日の予定や締切は確認できていないため、予定がないとは断定できません。カレンダーとタスク一覧を確認してください。"
+    },
+    {
+      "title": "おすすめ音楽 1曲目",
+      "text": "続いて今日のおすすめ音楽です。cinema staffの、西南西の虹。鋭いギターとドラマチックな展開。気に入ったら、画面のApple Musicのリンクから再生し、お気に入りへ追加してみてください。ここで一曲、聴いてみましょう。曲の再生はApple Musicの画面で操作してください。",
+      "music_break": true,
+      "song_index": 0
+    },
+    {
+      "title": "おすすめ音楽 2曲目",
+      "text": "続いて今日のおすすめ音楽です。mol-74の、ヘルツ。透明感のある歌声と浮遊感。気に入ったら、画面のApple Musicのリンクから再生し、お気に入りへ追加してみてください。ここで一曲、聴いてみましょう。曲の再生はApple Musicの画面で操作してください。",
+      "music_break": true,
+      "song_index": 1
+    },
+    {
+      "title": "エンディング",
+      "text": "今日の放送はここまで。天気とニュースは更新されることがあります。最新の情報も確認して、今日もよい一日を。また明日のマイ・モーニング・ラジオでお会いしましょう。"
     }
   ],
-  "songs": [],
-  "sources": [],
-  "status": "setup_required"
+  "songs": [
+    {
+      "artist": "cinema staff",
+      "title": "西南西の虹",
+      "reason": "鋭いギターとドラマチックな展開",
+      "url": "https://music.apple.com/jp/search?term=cinema%20staff%20%E8%A5%BF%E5%8D%97%E8%A5%BF%E3%81%AE%E8%99%B9"
+    },
+    {
+      "artist": "mol-74",
+      "title": "ヘルツ",
+      "reason": "透明感のある歌声と浮遊感",
+      "url": "https://music.apple.com/jp/search?term=mol-74%20%E3%83%98%E3%83%AB%E3%83%84"
+    }
+  ],
+  "weather": {
+    "川口市": {
+      "city": "川口市",
+      "hours": [
+        {
+          "hour": 7,
+          "temp": 4,
+          "rain": 0,
+          "weather": "快晴",
+          "wind": 4
+        },
+        {
+          "hour": 12,
+          "temp": 12,
+          "rain": 0,
+          "weather": "快晴",
+          "wind": 3
+        },
+        {
+          "hour": 18,
+          "temp": 11,
+          "rain": 0,
+          "weather": "快晴",
+          "wind": 4
+        },
+        {
+          "hour": 21,
+          "temp": 11,
+          "rain": 0,
+          "weather": "快晴",
+          "wind": 6
+        }
+      ],
+      "low": 4,
+      "high": 13,
+      "rain_max": 0
+    },
+    "品川区": {
+      "city": "品川区",
+      "hours": [
+        {
+          "hour": 7,
+          "temp": 6,
+          "rain": 0,
+          "weather": "快晴",
+          "wind": 10
+        },
+        {
+          "hour": 12,
+          "temp": 11,
+          "rain": 0,
+          "weather": "快晴",
+          "wind": 5
+        },
+        {
+          "hour": 18,
+          "temp": 12,
+          "rain": 0,
+          "weather": "快晴",
+          "wind": 8
+        },
+        {
+          "hour": 21,
+          "temp": 12,
+          "rain": 0,
+          "weather": "晴れ",
+          "wind": 12
+        }
+      ],
+      "low": 6,
+      "high": 13,
+      "rain_max": 0
+    }
+  },
+  "news": [
+    {
+      "title": "「平成」の記録、「生かさねば」 写真とノート、欠かせぬ資料に 72歳建築士、2度目の首里城復元・沖縄 - Yahoo!ニュース",
+      "source": "Yahoo!ニュース",
+      "published": "Sun, 22 Nov 2026 11:07:52 GMT",
+      "url": "https://news.google.com/rss/articles/CBMiUEFVX3lxTE1xekR4dURBWlJUY3pKaHdLX0o0NXRnUzVpSUhtMWRmODJjNWMzWjdDRExnWVBvTy1XdVJOdlpCWU9DT3hBcnFRWkxUbkluMnhh?oc=5"
+    },
+    {
+      "title": "「連続企業爆破事件」益永利明死刑囚が東京拘置所で死亡…１９７４年の三菱重工ビル爆破事件では８人死亡・１６５人重軽傷 - 読売新聞",
+      "source": "読売新聞",
+      "published": "Sun, 22 Nov 2026 09:42:00 GMT",
+      "url": "https://news.google.com/rss/articles/CBMiZkFVX3lxTE5KNDNOZUVwU1B5eWZ4aDJ1eEd4azZicWhNTVhTdGlvaTBzSHhOSXpoNzZnb1NYY1BEaEwxQTFpSlI1NFRsMlpKVk03VVZ2dXNDcVJMdDdQeTdUc05aSUp5a2xsUVJ5QQ?oc=5"
+    },
+    {
+      "title": "玉木氏、文科相は「問責に値」 立民幹事長、高市首相の任命責任指摘 - 時事ドットコム",
+      "source": "時事ドットコム",
+      "published": "Sun, 22 Nov 2026 08:16:00 GMT",
+      "url": "https://news.google.com/rss/articles/CBMiY0FVX3lxTE5aMGNtb1BZNFFnNDJYN2YxTmJXRVhLdjZ5RzZLM2taSUtUeGR1MGJ3UG8yOHhvSzJnNXQ4dTN6OGpNWFBhdG9fMnhQWjY1aHJRT2hpZnp6US1JWVFlTllnY2hBUQ?oc=5"
+    },
+    {
+      "title": "米大統領側 訪日時のオバマ氏やゆ - Yahoo!ニュース",
+      "source": "Yahoo!ニュース",
+      "published": "Sun, 22 Nov 2026 15:00:56 GMT",
+      "url": "https://news.google.com/rss/articles/CBMiUEFVX3lxTE1YTlNlcmlRbUh5SDR2NXE3Y1JxVUxOR2dBYTFDMlAyLVpOcXFNTDEteFQ2b1Y5NVJxOTYxU0RBRnZhcm5qR1hXaFcwUkVXWE5C?oc=5"
+    },
+    {
+      "title": "24日は全国的に雨 前線通過時は雨脚が強まり雷雨になる所も 北日本は暴風のおそれ(気象予報士 堂本 幸代) - tenki.jp",
+      "source": "tenki.jp",
+      "published": "Sun, 22 Nov 2026 09:45:57 GMT",
+      "url": "https://news.google.com/rss/articles/CBMicEFVX3lxTE5KRmlYbG1iR3VkV21jVEJZa2JDd3lSeEZYbHZkaGNLekRMZGJ1Nmc5ZDZUZ3VJQnA3YWRlRnNPbFNUYXZWcmluNURTeFBZQS1KYlBzSElDV1B4X25RLVljdUdjeHJlYW1sNjNScllGR2Y?oc=5"
+    }
+  ],
+  "warnings": [],
+  "sources": [
+    {
+      "name": "Open-Meteo",
+      "url": "https://open-meteo.com/"
+    },
+    {
+      "name": "Google News RSS",
+      "url": "https://news.google.com/"
+    }
+  ],
+  "calendar_status": "not_connected"
 }
