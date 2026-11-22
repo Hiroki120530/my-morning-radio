@@ -106,9 +106,9 @@ def make_episode(now, weathers, news, songs, warnings):
     sections.append({"title": "川口・品川の天気", "text": "".join(texts) +
      "朝晩の寒暖差や風に合わせて服装を調整してください。気象警報・注意報は取得していないため、必要な場合は気象庁をご確認ください。"})
     if news:
-        intro = "続いてニュースです。ニュース配信サービスの見出しを紹介します。記事本文を検証した解説ではないので、詳しくはリンク先をご覧ください。"
+        intro = "続いてニュースです。注目の話題をお届けします。詳しい内容は画面のニュース欄から確認できます。"
         for idx,item in enumerate(news,1):
-            intro+=f"{idx}件目。{item['title']}。配信元は{item['source']}です。"
+            intro+=f"{idx}件目。{item['title']}。"
     else: intro="今日のニュースは情報を取得できなかったため、未確認の見出しを補って紹介することはしません。"
     sections.append({"title": "今日のニュース", "text": intro})
     sections.append({"title":"今日の予定とタスク", "text":
@@ -117,7 +117,7 @@ def make_episode(now, weathers, news, songs, warnings):
         sections.append({"title":f"おすすめ音楽 {i}曲目", "text":
           f"続いて今日のおすすめ音楽です。{s['artist']}の、{s['title']}。{s['reason']}。"
           "気に入ったら、画面のApple Musicのリンクから再生し、お気に入りへ追加してみてください。ここで一曲、聴いてみましょう。"
-          "曲の再生はApple Musicの画面で操作してください。",
+          "楽曲は番組の画面から聴いてください。",
           "music_break": True, "song_index": i-1})
     sections.append({"title":"エンディング","text":
       "今日の放送はここまで。天気とニュースは更新されることがあります。最新の情報も確認して、今日もよい一日を。また明日のマイ・モーニング・ラジオでお会いしましょう。"})
