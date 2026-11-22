@@ -73,17 +73,48 @@ def get_news():
         link = (item.findtext("link") or "").strip()
         if not raw or not link.startswith("https://"): continue
         publisher = item.findtext("source") or "配信元未確認"
+        suffix = " - " + publisher
+        if raw.endswith(suffix): raw = raw[:-len(suffix)]
         published = item.findtext("pubDate") or ""
         items.append({"title": re.sub(r"\s+", " ", raw)[:160],
                       "source": publisher[:80], "published": published, "url": link})
     return items[:5]
 
+def apple_preview(artist, title):
+    """Read Apple's optional promotional stream URL without downloading the clip."""
+    try:
+        response = get_json("https://itunes.apple.com/search", {
+            "term": artist + " " + title,
+            "entity": "song", "media": "music", "country": "JP", "limit": 15,
+        })
+        def clean(s):
+            return re.sub(r"[^a-z0-9ぁ-んァ-ヶ一-龯]", "", str(s).casefold())
+        for item in response.get("results", []):
+            a, t = item.get("artistName", ""), item.get("trackName", "")
+            if (clean(artist) in clean(a) or clean(a) in clean(artist)) and (
+                clean(title) == clean(t) or clean(title) in clean(t)
+            ):
+                p, u = item.get("previewUrl"), item.get("trackViewUrl")
+                if isinstance(p, str) and p.startswith("https://"):
+                    result = {"preview_url": p}
+                    if isinstance(u, str) and u.startswith("https://"):
+                        result["store_url"] = u
+                    return result
+    except Exception:
+        pass
+    return {}
+
+
 def music(today):
     n = dt.date.fromisoformat(today).toordinal()
     choices = [SONGS[(2*n+i)%len(SONGS)] for i in range(2)]
-    return [{"artist": a, "title": t, "reason": reason,
-             "url": "https://music.apple.com/jp/search?term=" + urllib.parse.quote(a+" "+t)}
-            for a,t,reason in choices]
+    results = []
+    for a,t,reason in choices:
+        song = {"artist":a, "title":t, "reason":reason,
+                "url":"https://music.apple.com/jp/search?term="+urllib.parse.quote(a+" "+t)}
+        song.update(apple_preview(a,t))
+        results.append(song)
+    return results
 
 def make_episode(now, weathers, news, songs, warnings):
     day = now.date().isoformat()
