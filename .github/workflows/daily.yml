@@ -1,5 +1,11 @@
 name: Daily Morning Radio
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/**'
+      - 'site/index.html'
+      - '.github/workflows/daily.yml'
   workflow_dispatch:
   schedule:
     # JST 06:40 = UTC 21:40 on previous day.
