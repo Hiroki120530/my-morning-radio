@@ -293,37 +293,120 @@ def useful_news(item, detail):
     # and circular reports do not qualify.
     return bool(NEWS_ACTIONS.search(detail))
 
+
+def topic_fingerprint(title):
+    """Character trigrams catch variants of the same event without paid NLP."""
+    title = re.sub(r"【[^】]+】|\[[^\]]+\]", " ", title)
+    title = re.sub(r"\s+", "", title.lower())
+    chunks = re.findall(r"[一-龯ぁ-んァ-ヴーa-z0-9]{3,}", title)
+    grams = set()
+    for chunk in chunks:
+        grams.update(chunk[i:i+3] for i in range(len(chunk)-2))
+    # Common ngrams across unrelated stories must not determine a match.
+    return {g for g in grams if g not in {
+        "につい", "について", "として", "したこ", "してい", "という",
+        "明らか", "発表し", "関する", "国内で", "新たな", "ことが",
+        "始まる", "行われ", "に向け", "政府は", "による",
+    }}
+
+
+def same_topic(left, right):
+    """Conservative grouping: similar unique phrasing, not merely broad area."""
+    a = topic_fingerprint(left)
+    b = topic_fingerprint(right)
+    if not a or not b:
+        return False
+    shared = a & b
+    return len(shared) >= 3 and len(shared) / min(len(a), len(b)) >= 0.27
+
+
+def topic_groups(items, max_topics=12):
+    """Turn article headlines into topics; attach other publishers' coverage."""
+    ranked = sorted((item for item in items if editorial_score(item) >= 0),
+                    key=lambda x: editorial_score(x), reverse=True)
+    groups = []
+    for item in ranked:
+        group = next((g for g in groups if same_topic(g[0]["title"], item["title"])), None)
+        if group is None:
+            if len(groups) < max_topics:
+                groups.append([item])
+        elif not any(other["source"] == item["source"] for other in group):
+            group.append(item)
+    # A subject with independent reporting is preferred, but not required.
+    groups.sort(key=lambda group: (-(1 if len(group)>1 else 0),
+                                   -editorial_score(group[0])))
+    return groups
+
+
+def merge_briefs(primary, supporting):
+    """Make an audio-friendly short synthesis without inventing extra facts.
+
+    Use up to two factual units from the main report and an independently
+    reported, non-duplicate unit from a second publisher, if available.
+    We avoid pretending that a free extractive heuristic is a full LLM
+    reporter; unsupported speculation is never inserted.
+    """
+    lead = primary["detail"].rstrip(" 。")
+    if not supporting:
+        return lead + "。"
+    other = supporting["detail"].rstrip(" 。")
+    # Only include complementary detail when text is measurably different.
+    a, b = topic_fingerprint(lead), topic_fingerprint(other)
+    if not b or len(a & b) / max(1, len(b)) > 0.7:
+        return lead + "。"
+    units = re.split(r"(?<=[。！？])", other)
+    for fact in units:
+        fact = fact.strip(" 。")
+        if len(fact) < 30 or VISUAL_TEASER.search(fact):
+            continue
+        if any(term in fact for term in NEWS_BOILERPLATE):
+            continue
+        fgrams = topic_fingerprint(fact)
+        if fgrams and len( a & fgrams ) / len(fgrams) < 0.55:
+            return lead + "。また、" + fact + "。"
+    return lead + "。"
+
+
 def get_news():
-    items = feed_entries()
-    unique = {}
-    for item in items:
-        score = editorial_score(item)
-        if score < 0:
-            continue
-        key = re.sub(r"[^一-龯ぁ-んァ-ヶa-z0-9]", "", item["title"].lower())[:32]
-        if key not in unique or score > unique[key][0]:
-            unique[key] = (score, item)
-    # Prefer material developments, not arbitrary order from RSS. Verify
-    # full article text for each candidate before reading any of it aloud.
-    ranked = sorted(unique.values(), key=lambda x: -x[0])
-    candidates = [item for score, item in ranked[:24]]
-    if not candidates:
-        print("NEWS EDITORIAL: no worthy headline candidates", flush=True)
-        return []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as pool:
+    entries = feed_entries()
+    groups = topic_groups(entries)
+    # Editorial discovery starts with headlines, not a commitment to one
+    # publication's article. Collect distinct sources for each topic.
+    candidates = []
+    for group in groups:
+        candidates.extend(group[:2])
+    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
         articles = list(pool.map(news_article, candidates))
-    detailed = []
-    for item, article in zip(candidates, articles):
-        detail = article_brief(article, item["title"])
-        if not useful_news(item, detail):
+    by_url = {item["url"]: article for item, article in zip(candidates, articles)}
+    results = []
+    used_topics = []
+    for group in groups:
+        chosen = []
+        for item in group[:2]:
+            detail = article_brief(by_url.get(item["url"], ""), item["title"])
+            if useful_news(item, detail):
+                chosen.append({**item, "detail": detail})
+        if not chosen:
             continue
-        item["detail"] = detail
-        item["verified_article"] = True
-        detailed.append(item)
-        if len(detailed) >= 4:
+        if any(same_topic(old, chosen[0]["title"]) for old in used_topics):
+            continue
+        digest = merge_briefs(chosen[0], chosen[1] if len(chosen) > 1 else None)
+        if not useful_news(chosen[0], digest):
+            continue
+        result = dict(chosen[0])
+        result["detail"] = digest
+        result["verified_article"] = True
+        result["source_count"] = len(chosen)
+        # Internal evidence only; never force listeners to open source pages.
+        result["checked_sources"] = [{"name": x["source"], "url": x["url"]}
+                                     for x in chosen]
+        results.append(result)
+        used_topics.append(result["title"])
+        if len(results) >= 4:
             break
-    print(f"NEWS EDITORIAL: feed={len(items)} worthy={len(candidates)} aired={len(detailed)}", flush=True)
-    return detailed
+    print(f"NEWS EDITORIAL: feed={len(entries)} topics={len(groups)} aired={len(results)} "
+          f"multi_source={sum(x['source_count']>1 for x in results)}", flush=True)
+    return results
 
 def apple_preview(artist, title):
     """Read Apple's optional promotional stream URL without downloading the clip."""
