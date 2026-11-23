@@ -20,7 +20,9 @@ class PlayerIntegrationTests(unittest.TestCase):
     def test_in_programme_preview_sequence_and_song_cards(self):
         page=(ROOT/"site"/"index.html").read_text(encoding="utf-8")
         self.assertIn("official_preview",page)
-        self.assertIn("ended',advance",page)
+        self.assertIn("void advance()",page)
+        self.assertIn("nativeSong.controls=true",page)
+        self.assertIn("nativeSong.src=song.preview_url",page)
         self.assertIn("provided courtesy of iTunes",page)
         self.assertIn("Apple Musicで曲を確認",page)
         self.assertIn("この曲を試聴",page)
