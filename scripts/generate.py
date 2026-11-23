@@ -31,7 +31,7 @@ SONGS = [
 # Previously recommended: deliberately never draw from this set.
 # Selection rotates rather than pretending to know the full 2,500+ track CSV.
 def fetch(url):
-    req = urllib.request.Request(url, headers={"User-Agent": "MY-MORNING-RADIO/1.0"})
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; MYMorningRadio/1.0; +https://github.com/Hiroki120530/my-morning-radio)", "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"})
     with urllib.request.urlopen(req, timeout=18) as res:
         return res.read()
 
@@ -75,25 +75,38 @@ def clean_news_text(raw):
 
 
 def news_article(item):
-    """Try source article HTML, not only an RSS headline.
-
-    We rely on the source's supplied extract rather than fabricating details.
-    Restricted/failed sources are skipped for detailed narration.
-    """
+    """Extract factual body from a publisher article, not an RSS headline."""
     url = item["url"]
-    # Google News RSS links are aggregation/redirect URLs, sometimes inaccessible.
-    # Prefer the official broadcaster's direct links for trustworthy details.
     try:
         response = fetch(url)
-        if len(response) > 1_800_000:
+        if len(response) > 2_400_000:
             return ""
         import trafilatura
         article = trafilatura.extract(response, include_comments=False, include_tables=False,
-                                     favor_precision=True, deduplicate=True, url=url)
+                                     favor_precision=False, deduplicate=True, url=url)
         article = clean_news_text(article)
+        if len(article) < 250:
+            # Many modern news sites hydrate pages with JSON-LD, or have
+            # article paragraphs that generic extractors fail to recognize.
+            from bs4 import BeautifulSoup
+            import json as jsonlib
+            doc = BeautifulSoup(response, "html.parser")
+            for node in doc.select('script[type="application/ld+json"]'):
+                try:
+                    payload = jsonlib.loads(node.string or node.get_text())
+                    blocks = payload if isinstance(payload, list) else [payload]
+                    for block in blocks:
+                        if isinstance(block,dict) and isinstance(block.get("articleBody"),str):
+                            article = max(article,clean_news_text(block["articleBody"]),key=len)
+                except (ValueError,TypeError):
+                    continue
+            p_text = " ".join(p.get_text(" ",strip=True) for p in
+                       doc.select("article p, main p, [itemprop=articleBody] p")[:24])
+            article = max(article,clean_news_text(p_text),key=len)
         article = re.sub(r"(関連記事|関連ニュース|シェアする|記事をシェア).*", "", article)
-        return article[:2800]
-    except Exception:
+        return article[:3000]
+    except Exception as exc:
+        print(f'NEWS DIAGNOSTIC article inaccessible: {item["source"]} {type(exc).__name__}', flush=True)
         return ""
 
 
@@ -127,7 +140,9 @@ def feed_entries():
     feeds = [
         ("NHK", "https://news.web.nhk/n-data/conf/na/rss/cat0.xml"),
         ("NHK国際", "https://news.web.nhk/n-data/conf/na/rss/cat6.xml"),
+        ("BBC日本語", "https://feeds.bbci.co.uk/japanese/rss.xml"),
         ("Yahoo主要", "https://news.yahoo.co.jp/rss/topics/top-picks.xml"),
+        ("ITmedia", "https://news.yahoo.co.jp/rss/media/zdn_n/all.xml"),
     ]
     results = []
     for publisher, url in feeds:
