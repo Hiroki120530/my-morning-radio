@@ -114,30 +114,92 @@ def news_article(item):
         return ""
 
 
-def article_brief(text):
-    """Conservative extractive digest: never invent rationale or implications.
+# Text that belongs to website navigation, advertising or product promotion,
+# not the subject of a news report. Exclude before summarization and reject
+# any final script containing these fragments.
+NEWS_BOILERPLATE = (
+    "地図から選ぶ", "NHK ONE", "どなたでもご利用になれます",
+    "エリアから選ぶ", "カテゴリから選ぶ", "地域から選ぶ",
+    "新規会員登録", "ログイン", "マイページ", "アクセスランキング",
+    "この記事をシェア", "この記事に関する", "ご利用いただけます",
+    "プライバシーポリシー", "利用規約", "サイトマップ",
+    "Cookie", "クッキーを使用", "アプリで読む", "関連記事",
+    "掲載記事", "もっと見る", "動画を見る", "広告を表示",
+    "すべてのニュース", "ニュースを検索", "番組表",
+)
+META_SENTENCES = (
+    "ここまでが、公開記事から確認できた内容です。",
+    "詳しい内容は画面のニュース欄から確認できます。",
+    "記事本文を検証した解説ではないので",
+)
 
-    Limit source reuse and keep relevant factual sentences. When the article
-    lacks enough substance, do not treat the headline as researched news.
+
+def _words(text):
+    """Meaningful title terms, weighted to avoid unrelated page furniture."""
+    return set(re.findall(r"[一-龯]{2,}|[ァ-ヴー]{3,}|[a-zA-Z]{4,}|[0-9]{2,}", text))
+
+
+def article_brief(article, title=""):
+    """Create a short *conservative* audio brief from actual article facts.
+
+    This is a free deterministic summarizer, not an LLM. It removes page
+    furniture, ranks factual sentences, and makes a short original connective
+    narrative without inventing causes or consequences. Keep source excerpts
+    brief to avoid merely reading the publisher's entire article.
     """
-    sentences = [s.strip() for s in re.split(r"(?<=[。！？])", text) if s.strip()]
-    sentences = [s for s in sentences if 18 <= len(s) <= 210 and
-                 not re.search(r"^(この記事|詳しくは|写真|提供|Copyright|\u00a9|関連|広告|続きを読む)", s)]
-    if len(sentences) < 3:
-        return ""
-    # First factual lead + two later distinct sentences including enough context.
-    chosen = []
-    for sentence in sentences:
-        normalized = re.sub(r"\\W", "", sentence)
-        if any(normalized[:22] == re.sub(r"\\W", "", other)[:22] for other in chosen):
+    title_terms = _words(title)
+    text = html.unescape(article or "")
+    # Some sites return page furniture without newlines or full stops. Cut
+    # paragraphs before promoting candidate sentences.
+    for garbage in META_SENTENCES:
+        text = text.replace(garbage, " ")
+    sentences = re.split(r"(?<=[。！？!?])\\s*|[\\r\\n]+", text)
+    candidates = []
+    for index, raw in enumerate(sentences):
+        s = re.sub(r"\\s+", " ", raw).strip(" ・-　")
+        if not (27 <= len(s) <= 185):
             continue
-        chosen.append(sentence)
-        if len(chosen) >= 4:
+        if any(term.casefold() in s.casefold() for term in NEWS_BOILERPLATE):
+            continue
+        if re.search(r"(Copyright|All Rights Reserved|©|シェア|提供しています|ブラウザー|ログイン|アプリをダウンロード)", s, re.I):
+            continue
+        # Article text often has fragments without context. Only keep
+        # reasonably complete prose sentences ending with Japanese punctuation.
+        if not s.endswith(("。", "！", "？")):
+            continue
+        if re.search(r"(こちら|以下|上記|下記|このページ|ここをクリック)", s):
+            continue
+        tokens = _words(s)
+        shared = len(title_terms & tokens)
+        if title_terms and shared == 0 and index > 4:
+            continue
+        facts = len(re.findall(r"[0-9０-９]+(?:年|月|日|人|件|円|％|%|回|社|倍|度)", s))
+        score = shared * 4 + facts * 1.5 + (2 if index < 3 else 0) - index * 0.18
+        candidates.append((score, index, s))
+    if not candidates:
+        return ""
+    candidates.sort(key=lambda row: (-row[0], row[1]))
+    chosen = []
+    for _, index, s in candidates:
+        if any(s[:28] == existing[1][:28] or len(_words(s) & _words(existing[1])) >= max(5, len(_words(s)) * 0.75)
+               for existing in chosen):
+            continue
+        chosen.append((index, s))
+        if len(chosen) == 3:
             break
-    if len(chosen) < 3: return ""
-    # Limit reproduction per source: factual extracts only, not full article.
-    # Later this should be replaced by a properly licensed local summarizer.
-    return " ".join(chosen)[:340].rstrip("、。") + "。"
+    if len(chosen) < 2:
+        return ""
+    chosen.sort()
+    # Brief enough to summarize, not to perform full-article reading.
+    # Prefix is original and provides a seamless narration. Editors should
+    # later replace this heuristic with an actual local Japanese summarizer.
+    snippet = " ".join(s for _,s in chosen)[:235].rstrip("、。 ")
+    if len(snippet) < 85:
+        return ""
+    brief = "このニュースでは、" + snippet + "。"
+    if any(word.casefold() in brief.casefold() for word in NEWS_BOILERPLATE + META_SENTENCES):
+        return ""
+    return brief
 
 
 def feed_entries():
@@ -189,7 +251,7 @@ def get_news():
     print(f'NEWS DIAGNOSTIC article_lengths={[len(x) for x in articles]} feed_summary_lengths={[len(x["feed_summary"]) for x in candidates[:16]]}', flush=True)
     detailed = []
     for item, article in zip(candidates, articles):
-        detail = article_brief(article)
+        detail = article_brief(article, item['title'])
         if len(detail) < 110:
             # Feed snippets aren't enough to pretend to offer full explanation.
             continue
@@ -258,14 +320,13 @@ def make_episode(now, weathers, news, songs, warnings):
     sections.append({"title": "川口・品川の天気", "text": "".join(texts) +
      "朝晩の寒暖差や風に合わせて服装を調整してください。気象警報・注意報は取得していないため、必要な場合は気象庁をご確認ください。"})
     if news:
-        intro = "続いてニュースです。今日は、記事本文で内容を確認できたニュースを取り上げます。"
-        for idx,item in enumerate(news,1):
-            intro += (f"まず{idx}件目。{item['title']}。"
-                      f"具体的な内容を見ていきましょう。{item['detail']} "
-                      "ここまでが、公開記事から確認できた内容です。")
+        # No headline roundup and no templated tail sentence. Each item must
+        # be understood through one compact spoken factual digest.
+        stories = [item["detail"].strip() for item in news if item.get("detail")]
+        intro = "続いて、今日のニュースです。 " + " 少し話題を変えましょう。 ".join(stories)
     else:
-        intro = ("続いてニュースですが、現時点では記事本文を十分に確認できませんでした。"
-                 "見出しだけで中身を推測することはせず、ニュースの解説は今回はお休みします。")
+        intro = ("続いてニュースです。今日は記事本文の確認ができなかったため、"
+                 "不確かな内容を読み上げることは控えます。")
     sections.append({"title": "今日のニュース", "text": intro})
     sections.append({"title":"今日の予定とタスク", "text":
       "現在、Googleカレンダーやタスクアプリの自動連携は設定されていません。今日の予定や締切は確認できていないため、予定がないとは断定できません。カレンダーとタスク一覧を確認してください。"})
