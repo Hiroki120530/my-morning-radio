@@ -159,7 +159,7 @@ def article_brief(article, title=""):
         s = re.sub(r"\\s+", " ", raw).strip(" ・-　")
         if not (27 <= len(s) <= 185):
             continue
-        if any(term.casefold() in s.casefold() for term in NEWS_BOILERPLATE):
+        if any(term.casefold() in s.casefold() for term in NEWS_BOILERPLATE) or VISUAL_TEASER.search(s):
             continue
         if re.search(r"(Copyright|All Rights Reserved|©|シェア|提供しています|ブラウザー|ログイン|アプリをダウンロード)", s, re.I):
             continue
@@ -235,33 +235,95 @@ def feed_entries():
     return result
 
 
+# Audio-first editorial gate. A visual teaser is not an audio news story.
+# Require a concrete development with a subject and a real-world consequence.
+VISUAL_TEASER = re.compile(
+    r"(?:【|\[)\s*(?:動画|映像|写真|画像|フォト|ライブ配信|写真特集|動画あり)"
+    r"|上空から見た|写真で見る|画像で見る|映像で見る|動画で見る"
+    r"|どんな姿|どんな様子|どんな景色|どんな光景"
+    r"|(?:見て|ご覧)ください|フォトギャラリー|ビジュアル|総集編",
+    re.I,
+)
+LOW_VALUE_TITLE = re.compile(
+    r"(?:とは[？?]?$|は[？?]?$|どうなる[？?]?$|何が[？?]?$|まとめてみた"
+    r"|ランキング|トップ[0-9０-９]+|話題の[0-9０-９]+選"
+    r"|お楽しみください|クイズ|チェックして|オフショット)",
+    re.I,
+)
+# Reject purely illustrative, speculative, or promotional headlines.
+NEWS_ACTIONS = re.compile(
+    r"発表|決定|可決|成立|施行|実施|開始|導入|改正|変更|停止"
+    r"|中止|再開|逮捕|起訴|判決|捜査|事故|火災|地震|津波|台風"
+    r"|被害|発生|増加|減少|上昇|下落|値上げ|値下げ|引き上げ"
+    r"|引き下げ|合意|締結|協議|辞任|就任|選出|勝利|敗北"
+    r"|公開|発売|提供|撤退|買収|資金調達|調査|判明|確認|完成"
+    r"|開通|通行止め|運休|制限|対象|拡大|縮小|更新|警告"
+)
+SOCIETAL_IMPACT = re.compile(
+    r"政府|国会|省庁|自治体|法律|税|経済|企業|市場|物価"
+    r"|金利|賃金|給与|保険|医療|教育|交通|鉄道|電車|航空"
+    r"|電力|電気|通信|サイバー|情報漏えい|AI|人工知能"
+    r"|感染|災害|死者|負傷|選挙|首相|大統領|外交|戦争"
+    r"|研究|科学|気象|地震|速報|世界|国内|全国|関東"
+)
+PROMO_ONLY = re.compile(r"ご覧|紹介|見どころ|見せる|披露|特集|探訪|散歩|写真|映像|中継")
+
+def editorial_score(item):
+    """Hard rejection before fetch + transparent, conservative topic scoring."""
+    title = clean_news_text(item.get("title", ""))
+    if len(title) < 15 or VISUAL_TEASER.search(title) or LOW_VALUE_TITLE.search(title):
+        return -1
+    if PROMO_ONLY.search(title) and not NEWS_ACTIONS.search(title):
+        return -1
+    action = bool(NEWS_ACTIONS.search(title))
+    impact = bool(SOCIETAL_IMPACT.search(title))
+    if not action:
+        return -1
+    # Topic importance before source position: don't pick the first four items.
+    return (4 if impact else 0) + (3 if action else 0) + (2 if re.search(r"[0-9０-９]", title) else 0)
+
+
+def useful_news(item, detail):
+    """Never air a story solely because an HTML page produced text."""
+    if editorial_score(item) < 0 or len(detail) < 90:
+        return False
+    if VISUAL_TEASER.search(detail) or any(x in detail for x in NEWS_BOILERPLATE):
+        return False
+    # Require enough development in the digest itself; visual captions
+    # and circular reports do not qualify.
+    return bool(NEWS_ACTIONS.search(detail))
+
 def get_news():
     items = feed_entries()
-    print(f'NEWS DIAGNOSTIC feeds={len(items)} first_sources={[x["source"] for x in items[:5]]}', flush=True)
-    seen = set()
-    candidates = []
-    for x in items:
-        key = re.sub(r"[^一-龯ぁ-んァ-ヶa-z0-9]", "", x["title"].lower())[:32]
-        if key in seen: continue
-        seen.add(key)
-        candidates.append(x)
-    # Full articles are required. Keep this bounded for free GitHub Actions.
+    unique = {}
+    for item in items:
+        score = editorial_score(item)
+        if score < 0:
+            continue
+        key = re.sub(r"[^一-龯ぁ-んァ-ヶa-z0-9]", "", item["title"].lower())[:32]
+        if key not in unique or score > unique[key][0]:
+            unique[key] = (score, item)
+    # Prefer material developments, not arbitrary order from RSS. Verify
+    # full article text for each candidate before reading any of it aloud.
+    ranked = sorted(unique.values(), key=lambda x: -x[0])
+    candidates = [item for score, item in ranked[:24]]
+    if not candidates:
+        print("NEWS EDITORIAL: no worthy headline candidates", flush=True)
+        return []
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as pool:
-        articles = list(pool.map(news_article, candidates[:16]))
-    print(f'NEWS DIAGNOSTIC article_lengths={[len(x) for x in articles]} feed_summary_lengths={[len(x["feed_summary"]) for x in candidates[:16]]}', flush=True)
+        articles = list(pool.map(news_article, candidates))
     detailed = []
     for item, article in zip(candidates, articles):
-        detail = article_brief(article, item['title'])
-        if len(detail) < 110:
-            # Feed snippets aren't enough to pretend to offer full explanation.
+        detail = article_brief(article, item["title"])
+        if not useful_news(item, detail):
             continue
         item["detail"] = detail
         item["verified_article"] = True
         detailed.append(item)
         if len(detailed) >= 4:
             break
+    print(f"NEWS EDITORIAL: feed={len(items)} worthy={len(candidates)} aired={len(detailed)}", flush=True)
     return detailed
-
 
 def apple_preview(artist, title):
     """Read Apple's optional promotional stream URL without downloading the clip."""
