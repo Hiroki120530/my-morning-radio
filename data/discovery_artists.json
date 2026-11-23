@@ -1,0 +1,213 @@
+{
+  "version": 1,
+  "source": "curated_unowned_artist_pool",
+  "snapshot_date": "2026-11-22",
+  "strategy": "Select only artists absent from the privately supplied 2,515-song favorites export. No playlist content is stored in this public repository.",
+  "artists": [
+    {
+      "name": "the cabs",
+      "group": "rock",
+      "reason": "変拍子のギターと緊張感のある展開。Age Factoryやヒトリエが好きな人に。"
+    },
+    {
+      "name": "ART-SCHOOL",
+      "group": "rock",
+      "reason": "鋭いギターと陰影のあるメロディー。ASIAN KUNG-FU GENERATIONのファンに。"
+    },
+    {
+      "name": "plenty",
+      "group": "rock",
+      "reason": "繊細で胸に残る歌詞とギター。BUMP OF CHICKENが好きなら。"
+    },
+    {
+      "name": "Ivy to Fraudulent Game",
+      "group": "rock",
+      "reason": "ダイナミックなサウンドと叙情的な歌。SUPER BEAVERが好きなら。"
+    },
+    {
+      "name": "Halo at 四畳半",
+      "group": "rock",
+      "reason": "文学的な歌詞と熱量のあるギター。BUMP OF CHICKENに近い余韻。"
+    },
+    {
+      "name": "the quiet room",
+      "group": "rock",
+      "reason": "軽快なギターロックと歌詞の切れ味。"
+    },
+    {
+      "name": "climbgrow",
+      "group": "rock",
+      "reason": "骨太なロックと荒々しいボーカル。Age Factoryが好きなら。"
+    },
+    {
+      "name": "SIX LOUNGE",
+      "group": "rock",
+      "reason": "生々しいバンドの迫力と歌の熱。"
+    },
+    {
+      "name": "cinema staff",
+      "group": "rock",
+      "reason": "ドラマチックな展開と切れ味のあるギター。"
+    },
+    {
+      "name": "サイダーガール",
+      "group": "rock",
+      "reason": "爽快なギターロックと日常を描く歌詞。"
+    },
+    {
+      "name": "Hello Sleepwalkers",
+      "group": "rock",
+      "reason": "複雑なリズムと勢いのあるツインボーカル。"
+    },
+    {
+      "name": "ユアネス",
+      "group": "rock",
+      "reason": "感情を揺さぶる歌声と緻密な演奏。"
+    },
+    {
+      "name": "osage",
+      "group": "rock",
+      "reason": "情感のあるメロディーと丁寧なバンドサウンド。"
+    },
+    {
+      "name": "CRYAMY",
+      "group": "rock",
+      "reason": "荒々しさと切実な感情がぶつかるロック。"
+    },
+    {
+      "name": "さよならポエジー",
+      "group": "rock",
+      "reason": "むき出しの言葉と疾走感。Age Factoryのファンに。"
+    },
+    {
+      "name": "TETORA",
+      "group": "rock",
+      "reason": "まっすぐな歌詞とエネルギッシュなギター。"
+    },
+    {
+      "name": "ペルシカリア",
+      "group": "rock",
+      "reason": "青春感と勢いのあるバンドサウンド。"
+    },
+    {
+      "name": "リュックと添い寝ごはん",
+      "group": "rock",
+      "reason": "親しみやすいメロディーと瑞々しいギターロック。"
+    },
+    {
+      "name": "クジラ夜の街",
+      "group": "rock",
+      "reason": "物語性のある歌詞と豊かなアレンジ。"
+    },
+    {
+      "name": "カネヨリマサル",
+      "group": "rock",
+      "reason": "等身大の歌詞と力強いギター。"
+    },
+    {
+      "name": "polly",
+      "group": "rock",
+      "reason": "浮遊感のある音像とオルタナティブな展開。"
+    },
+    {
+      "name": "LILI LIMIT",
+      "group": "rock",
+      "reason": "独特なリズムとメロディーのオルタナティブポップ。"
+    },
+    {
+      "name": "ルサンチマン",
+      "group": "rock",
+      "reason": "ひねりのある演奏と爆発力のあるロック。"
+    },
+    {
+      "name": "眩暈SIREN",
+      "group": "rock",
+      "reason": "ダークで激しいサウンドと感情的な歌声。"
+    },
+    {
+      "name": "ひかりのなかに",
+      "group": "rock",
+      "reason": "勢いのあるロックと前向きなメッセージ。"
+    },
+    {
+      "name": "FINLANDS",
+      "group": "rock",
+      "reason": "独特なハイトーンボイスと疾走するギター。"
+    },
+    {
+      "name": "カラスは真っ白",
+      "group": "rock",
+      "reason": "技巧的なギターと躍動するポップサウンド。"
+    },
+    {
+      "name": "österreich",
+      "group": "explore",
+      "reason": "複雑なギターと繊細な歌声。緊張感のある音楽が好きなら。"
+    },
+    {
+      "name": "mol-74",
+      "group": "explore",
+      "reason": "透明感のあるメロディーと静かな情感。"
+    },
+    {
+      "name": "SHE'S",
+      "group": "explore",
+      "reason": "ピアノとバンドが響き合う美しいメロディー。"
+    },
+    {
+      "name": "パスピエ",
+      "group": "explore",
+      "reason": "個性的な歌声と軽やかなリズム。"
+    },
+    {
+      "name": "マルシィ",
+      "group": "explore",
+      "reason": "感情の伝わる歌詞と親しみやすいメロディー。"
+    },
+    {
+      "name": "Cö shu Nie",
+      "group": "explore",
+      "reason": "精巧な音作りと変幻自在な展開。"
+    },
+    {
+      "name": "神はサイコロを振らない",
+      "group": "explore",
+      "reason": "真っすぐな歌声と壮大なメロディー。"
+    },
+    {
+      "name": "ACE COLLECTION",
+      "group": "explore",
+      "reason": "幅広い音楽性とキャッチーなサビ。"
+    },
+    {
+      "name": "ペンギンラッシュ",
+      "group": "explore",
+      "reason": "ジャズの要素を含んだ巧みなバンドアンサンブル。"
+    },
+    {
+      "name": "school food punishment",
+      "group": "explore",
+      "reason": "電子音とギターが混ざる緻密なサウンド。"
+    },
+    {
+      "name": "tricot",
+      "group": "explore",
+      "reason": "変拍子とポップさを共存させた演奏。"
+    },
+    {
+      "name": "CHAI",
+      "group": "explore",
+      "reason": "遊び心あふれるポップでファンキーな音楽。"
+    },
+    {
+      "name": "betcover!!",
+      "group": "explore",
+      "reason": "予測できない曲展開と独特なメロディー。"
+    },
+    {
+      "name": "Bialystocks",
+      "group": "explore",
+      "reason": "洗練されたアレンジと心地よいグルーヴ。"
+    }
+  ]
+}
