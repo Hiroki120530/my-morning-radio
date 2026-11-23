@@ -30,12 +30,12 @@ a{color:#f2b27a}select{background:#26334a;color:white;border:1px solid #475972;p
 <div class="row"><div><small class="muted">ON AIR</small><h2 id="chapterTitle">番組の準備中</h2></div><label class="muted">速度 <select id="speed"><option value="0.85">0.85</option><option value="1" selected>1.0</option><option value="1.15">1.15</option><option value="1.3">1.3</option></select></label></div>
 <div class="controls"><button id="prev" aria-label="15秒戻る">❮❮</button><button id="play" class="primary" aria-label="再生" disabled>▶</button><button id="next" aria-label="30秒進む">❯❯</button></div>
 <p class="meta" id="status" aria-live="polite">番組を読み込んでいます</p><div id="nativePlayer"></div>
-<div id="musicNotice" class="hidden line"><p><strong>ここでミュージックタイム。</strong>下の曲をApple Musicで再生して、聴き終えたら「番組に戻る」を押してください。</p><button class="primary" id="resume">番組に戻る ▶</button></div>
+<div id="musicNotice" class="hidden line"><button class="primary" id="resume">番組の続きを再生 ▶</button></div>
 </section>
 <section class="box"><h2>今日のラインナップ</h2><div id="chapters"></div></section>
 <section class="box"><h2>今日のおすすめ曲をここで試聴</h2><div id="songs"><p class="muted">準備中</p></div></section>
 <section class="box"><h2>放送原稿</h2><p id="transcript" style="white-space:pre-wrap"></p></section>
-<p class="note">最初の再生操作でトークから公式試聴へ進みます。試聴は約30秒で、曲の良し悪しを判断するためのプロモーション音源です。Apple Musicでのフル再生とは異なります。iPhoneの自動再生制限により、曲の切り替え時だけ再タップが必要な場合があります。</p>
+<p class="note">曲の下に実際に再生できる約30秒の公式試聴プレーヤーを設置しました。番組から曲への自動切り替えも試みますが、iPhoneでは切り替えが制限される場合があります。止まった場合は、その曲のプレーヤーを押すとこのページ内で聴けます。</p>
 </main>
 <script>
 'use strict';
@@ -81,14 +81,17 @@ function loadTrack(index){
   player.src='./'+url+'?v='+encodeURIComponent(episode.generated_at||'');
   player.playbackRate=Number($('speed').value);
  }
- player.load();updateNowPlaying();setButtons();return true;
+ // Avoid explicit load() during Safari source changes.
+ updateNowPlaying();setButtons();return true;
 }
 async function startTrack(index){
  if(!loadTrack(index))return false;
  try{
   await player.play();playingStarted=true;setButtons();return true;
  }catch(e){
-  status('自動再生が制限されました。オレンジの再生ボタンを一度押すと続きから聴けます。');
+  status(isPreview(current())?
+   'iPhoneが曲の自動再生を止めました。下の試聴プレーヤーを押せば、この画面で曲を聴けます。':
+   'トークの自動再生が止まりました。オレンジ色の再生ボタンで続きを再生できます。');
   setButtons();return false;
  }
 }
@@ -99,9 +102,11 @@ async function advance(){
 }
 player.addEventListener('play',()=>{playingStarted=true;setButtons();updateNowPlaying()});
 player.addEventListener('pause',setButtons);
-player.addEventListener('ended',advance);
+player.addEventListener('ended',()=>{void advance()});
 player.addEventListener('error',()=>{
- status('音声の取得に失敗しました。次のトークへ進む場合は「次へ」を押してください。');
+ status(isPreview(current())?
+    '試聴音源を取得できませんでした。下の標準プレーヤーでも試せます。':
+    '音声を取得できませんでした。次へ進むには「次へ」を押してください。');
  setButtons();
 });
 function render(){
@@ -123,6 +128,33 @@ function render(){
   const details=document.createElement('p');details.className='note';
   details.textContent='約30秒の公式試聴。provided courtesy of iTunes';
   div.append(heading,about,details);
+  // Independent native controls let a listener hear the preview directly
+  // when Safari denies programmatic autoplay between sources.
+  if(typeof song.preview_url==='string' && /^https:\/\//.test(song.preview_url)){
+   const nativeSong=document.createElement('audio');
+   nativeSong.controls=true;
+   nativeSong.preload='none';
+   nativeSong.playsInline=true;
+   nativeSong.src=song.preview_url;
+   nativeSong.style.width='100%';
+   nativeSong.style.margin='10px 0';
+   nativeSong.setAttribute('aria-label',song.artist+'の'+song.title+'をその場で試聴');
+   nativeSong.addEventListener('play',()=>{
+     player.pause();
+     document.querySelectorAll('.song audio').forEach(other=>{if(other!==nativeSong)other.pause()});
+     status('曲を再生中：'+songLabel(i));
+   });
+   nativeSong.addEventListener('error',()=>{
+     if(!div.querySelector('[data-audio-error]')){
+       const msg=document.createElement('p');msg.className='note';
+       msg.dataset.audioError='yes';
+       msg.textContent='この公式音源は現在再生できません。';
+       div.append(msg);
+     }
+   });
+   nativeSong.addEventListener('ended',()=>status('試聴終了。番組の再生ボタンで続きを聴けます。'));
+   div.append(nativeSong);
+  }
   const row=document.createElement('div');row.className='row';row.style.flexWrap='wrap';row.style.justifyContent='flex-start';
   const playSong=document.createElement('button');playSong.className='primary';playSong.textContent='♫ この曲を試聴';
   const index=queue.findIndex(q=>isPreview(q)&&q.song_index===i);
