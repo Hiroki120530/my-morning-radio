@@ -18,24 +18,8 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 JST = ZoneInfo("Asia/Tokyo")
 CITIES = {"川口市": (35.807, 139.724), "品川区": (35.610, 139.730)}
 WEATHER_CODE = {0: "快晴", 1: "晴れ", 2: "晴れ時々くもり", 3: "くもり", 45: "霧", 48: "霧"}
-SONGS = [
-    ("plenty", "白い光", "静かな情感とギターの余韻が魅力の曲"),
-    ("andymori", "革命", "まっすぐな疾走感とメロディーが印象的な曲"),
-    ("LAMP IN TERREN", "緑閃光", "熱量のあるギターロックが好きな人へ"),
-    ("People In The Box", "聖者たち", "独特な音の構成を楽しみたい朝に"),
-    ("GOOD ON THE REEL", "素晴らしき今日の始まり", "言葉とメロディーが響く一曲"),
-    ("Czecho No Republic", "Amazing Parade", "軽快なリズムを楽しめるポップロック"),
-    ("cinema staff", "西南西の虹", "鋭いギターとドラマチックな展開"),
-    ("mol-74", "ヘルツ", "透明感のある歌声と浮遊感"),
-    ("the cabs", "二月の兵隊", "繊細なギターと緊迫感のある展開"),
-    ("SHE'S", "Dance With Me", "メロディーと躍動感が印象的"),
-    ("Halo at 四畳半", "春が終わる前に", "情緒豊かなギターロック"),
-    ("フレデリック", "オドループ", "リズムに引き込まれるダンスロック"),
-    ("KANA-BOON", "ないものねだり", "歯切れのいいギターとサビの勢い"),
-    ("cinema staff", "great escape", "疾走するギターとドラマ性"),
-]
-# Previously recommended: deliberately never draw from this set.
-# Selection rotates rather than pretending to know the full 2,500+ track CSV.
+# Discovery artist pool is maintained in data/discovery_artists.json.
+# The private 2,515-track favorites CSV is not stored in this public repo.
 def fetch(url):
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; MYMorningRadio/1.0; +https://github.com/Hiroki120530/my-morning-radio)", "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"})
     with urllib.request.urlopen(req, timeout=18) as res:
@@ -428,56 +412,13 @@ def get_news():
           f"multi_source={sum(x['source_count']>1 for x in results)}", flush=True)
     return results
 
-def apple_preview(artist, title):
-    """Read Apple's optional promotional stream URL without downloading the clip."""
-    try:
-        response = get_json("https://itunes.apple.com/search", {
-            "term": artist + " " + title,
-            "entity": "song", "media": "music", "country": "JP", "limit": 15,
-        })
-        def clean(s):
-            return re.sub(r"[^a-z0-9ぁ-んァ-ヶ一-龯]", "", str(s).casefold())
-        for item in response.get("results", []):
-            a, t = item.get("artistName", ""), item.get("trackName", "")
-            if (clean(artist) in clean(a) or clean(a) in clean(artist)) and (
-                clean(title) == clean(t) or clean(title) in clean(t)
-            ):
-                p, u = item.get("previewUrl"), item.get("trackViewUrl")
-                if isinstance(p, str) and p.startswith("https://"):
-                    result = {"preview_url": p}
-                    if isinstance(u, str) and u.startswith("https://"):
-                        result["store_url"] = u
-                    return result
-    except Exception:
-        pass
-    return {}
-
-
 def music(today):
-    """Recommend only tracks with a verified, playable official preview.
-
-    A search link without playable audio is not a recommendation for this
-    listening-first program. Clips are streamed directly from Apple on the
-    promotional song card: never archive or blend them into the podcast MP3.
-    """
-    n = dt.date.fromisoformat(today).toordinal()
-    results = []
-    for i in range(len(SONGS)):
-        a,t,reason = SONGS[(2*n+i)%len(SONGS)]
-        preview = apple_preview(a,t)
-        if not preview.get("preview_url"):
-            continue
-        store_url = preview.get("store_url")
-        if not store_url:
-            continue
-        results.append({
-            "artist": a, "title": t, "reason": reason,
-            "url": store_url,
-            **preview,
-        })
-        if len(results)==2:
-            break
-    return results
+    """Select two verified preview tracks from artists absent in favorites."""
+    try:
+        from scripts.recommend import daily_recommendations
+    except ModuleNotFoundError:
+        from recommend import daily_recommendations
+    return daily_recommendations(today, get_json)
 
 def make_episode(now, weathers, news, songs, warnings):
     day = now.date().isoformat()
