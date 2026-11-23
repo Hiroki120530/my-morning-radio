@@ -149,6 +149,7 @@ def feed_entries():
 
 def get_news():
     items = feed_entries()
+    print(f'NEWS DIAGNOSTIC feeds={len(items)} first_sources={[x["source"] for x in items[:5]]}', flush=True)
     seen = set()
     candidates = []
     for x in items:
@@ -159,6 +160,7 @@ def get_news():
     # Full articles are required. Keep this bounded for free GitHub Actions.
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as pool:
         articles = list(pool.map(news_article, candidates[:16]))
+    print(f'NEWS DIAGNOSTIC article_lengths={[len(x) for x in articles]} feed_summary_lengths={[len(x["feed_summary"]) for x in candidates[:16]]}', flush=True)
     detailed = []
     for item, article in zip(candidates, articles):
         detail = article_brief(article)
