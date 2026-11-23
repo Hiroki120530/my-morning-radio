@@ -105,6 +105,11 @@ class RadioTest(unittest.TestCase):
         self.assertNotIn("https://",spoken)
         self.assertNotIn("出典",spoken)
 
+    def test_known_favorites_not_curated_as_discoveries(self):
+        current={(a.casefold(),t.casefold()) for a,t,_ in generate.SONGS}
+        self.assertNotIn(("go!go!vanillas", "平成ペイン".casefold()), current)
+        self.assertNotIn(("unison square garden", "シュガーソングとビターステップ".casefold()), current)
+
     def test_only_songs_with_playable_previews_are_recommended(self):
         with patch.object(generate,"apple_preview",side_effect=lambda a,t:{
             "preview_url":"https://audio-ssl.itunes.apple.com/example.m4a",
