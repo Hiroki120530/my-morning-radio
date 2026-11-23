@@ -76,6 +76,35 @@ class RadioTest(unittest.TestCase):
         self.assertEqual(read.call_count,1)
         self.assertFalse(any("首里城" in story["title"] for story in news))
 
+    def test_related_headlines_group_across_publishers(self):
+        a={"title":"政府が新しい企業支援制度を発表 2027年から開始",
+           "source":"NHK","url":"https://example.org/a"}
+        b={"title":"企業支援制度を政府が発表、2027年から開始へ",
+           "source":"BBC日本語","url":"https://example.org/b"}
+        groups=generate.topic_groups([a,b])
+        self.assertEqual(len(groups),1)
+        self.assertEqual({x["source"] for x in groups[0]}, {"NHK","BBC日本語"})
+
+    def test_multi_source_composition_does_not_invent_claims(self):
+        first={"detail":"政府は企業向けの支援制度を発表し、2027年から実施するとした。"
+                        "対象は中小企業で、補助金の支給も予定している。"}
+        second={"detail":"対象企業の申請方法は後日発表される。"
+                         "申請手続きは関係省庁が整備する方針だ。"}
+        result=generate.merge_briefs(first,second)
+        self.assertIn("政府",result)
+        self.assertNotIn("経済効果",result)
+        self.assertNotIn("出典",result)
+
+    def test_source_links_not_spoken(self):
+        now=dt.datetime(2026,11,24,6,40,tzinfo=ZoneInfo("Asia/Tokyo"))
+        item={"title":"政府が企業支援制度の導入を発表",
+              "detail":"政府は中小企業向けの支援制度を発表した。2027年から制度の実施を始める。",
+              "checked_sources":[{"name":"NHK","url":"https://example.org/a"}]}
+        ep=generate.make_episode(now,{},[item],[],[])
+        spoken=ep["sections"][2]["text"]
+        self.assertNotIn("https://",spoken)
+        self.assertNotIn("出典",spoken)
+
     def test_music_urls_are_apple_search(self):
         self.assertEqual(len(generate.music("2026-11-24")),2)
         self.assertTrue(all(x["url"].startswith("https://music.apple.com/jp/search?term=") for x in generate.music("2026-11-24")))
