@@ -8,7 +8,7 @@ class RadioTest(unittest.TestCase):
     def test_episode_never_claims_calendar_connected(self):
         now=dt.datetime(2026,11,24,6,40,tzinfo=ZoneInfo("Asia/Tokyo"))
         fake={"川口市":{"low":4,"high":15,"rain_max":5,"hours":[{"hour":h,"temp":10,"rain":5,"weather":"晴れ","wind":5} for h in (7,12,18,21)]}}
-        ep=generate.make_episode(now,fake,[],generate.music("2026-11-24"),[])
+        ep=generate.make_episode(now,fake,[],[],[])
         self.assertEqual(ep["calendar_status"],"not_connected")
         self.assertIn("確認できていない",ep["sections"][3]["text"])
         self.assertNotIn("予定はありません",ep["sections"][3]["text"])
@@ -105,35 +105,38 @@ class RadioTest(unittest.TestCase):
         self.assertNotIn("https://",spoken)
         self.assertNotIn("出典",spoken)
 
-    def test_known_favorites_not_curated_as_discoveries(self):
-        current={(a.casefold(),t.casefold()) for a,t,_ in generate.SONGS}
-        self.assertNotIn(("go!go!vanillas", "平成ペイン".casefold()), current)
-        self.assertNotIn(("unison square garden", "シュガーソングとビターステップ".casefold()), current)
-
-    def test_only_songs_with_playable_previews_are_recommended(self):
-        with patch.object(generate,"apple_preview",side_effect=lambda a,t:{
-            "preview_url":"https://audio-ssl.itunes.apple.com/example.m4a",
-            "store_url":"https://music.apple.com/jp/album/example/123"
-        }):
+    def test_two_preview_tracks_are_recommended(self):
+        def fake(url, params):
+            artist=params["term"]
+            return {"results":[{
+                "artistName":artist,
+                "trackName":artist+" の新曲",
+                "trackId":123,
+                "trackViewUrl":"https://music.apple.com/jp/album/example/123",
+                "previewUrl":"https://audio-ssl.itunes.apple.com/example.m4a",
+            }]}
+        with patch.object(generate,"get_json",side_effect=fake):
             songs=generate.music("2026-11-24")
         self.assertEqual(len(songs),2)
         self.assertTrue(all(x["preview_url"].startswith("https://") for x in songs))
-        self.assertTrue(all(x["store_url"].startswith("https://") for x in songs))
+        self.assertEqual(len({x["artist"] for x in songs}),2)
 
     def test_no_song_when_not_playable(self):
-        with patch.object(generate,"apple_preview",return_value={}):
+        with patch.object(generate,"get_json",return_value={"results":[]}):
             songs=generate.music("2026-11-24")
         self.assertEqual(songs,[])
         now=dt.datetime(2026,11,24,6,40,tzinfo=ZoneInfo("Asia/Tokyo"))
         ep=generate.make_episode(now,{},[],songs,[])
         self.assertFalse(any(s.get("music_break") for s in ep["sections"]))
-        self.assertFalse("リンクから再生" in str(ep["sections"]))
+        self.assertNotIn("リンクから再生", str(ep["sections"]))
 
     def test_song_is_introduced_for_in_programme_playback(self):
-        with patch.object(generate,"apple_preview",return_value={
-            "preview_url":"https://audio-ssl.itunes.apple.com/example.m4a",
-            "store_url":"https://music.apple.com/jp/album/example/123"}):
-            songs=generate.music("2026-11-24")
+        songs=[
+            {"artist":"the cabs","title":"曲A","reason":"力強いギター",
+             "preview_url":"https://example.org/preview.mp4"},
+            {"artist":"SHE'S","title":"曲B","reason":"美しいピアノ",
+             "preview_url":"https://example.org/preview2.mp4"}
+        ]
         now=dt.datetime(2026,11,24,6,40,tzinfo=ZoneInfo("Asia/Tokyo"))
         ep=generate.make_episode(now,{},[],songs,[])
         music_sections=[s for s in ep["sections"] if s.get("music_break")]
