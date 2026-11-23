@@ -108,7 +108,11 @@ def news_article(item):
                        doc.select("article p, main p, [itemprop=articleBody] p")[:24])
             article = max(article,clean_news_text(p_text),key=len)
         article = re.sub(r"(関連記事|関連ニュース|シェアする|記事をシェア).*", "", article)
-        return article[:3000]
+        # Avoid discarding a sentence's ending during page-size capping.
+        if len(article) > 3000:
+            end = max(article.rfind(mark, 0, 3000) for mark in ("。", "！", "？"))
+            article = article[:end + 1] if end >= 500 else article[:3000].rsplit(" ", 1)[0]
+        return article
     except Exception as exc:
         print(f'NEWS DIAGNOSTIC article inaccessible: {item["source"]} {type(exc).__name__}: {str(exc)[:110]}', flush=True)
         return ""
@@ -193,10 +197,20 @@ def article_brief(article, title=""):
     # Brief enough to summarize, not to perform full-article reading.
     # Prefix is original and provides a seamless narration. Editors should
     # later replace this heuristic with an actual local Japanese summarizer.
-    snippet = " ".join(s for _,s in chosen)[:235].rstrip("、。 ")
-    if len(snippet) < 85:
+    # IMPORTANT: never slice Japanese text at a character limit. It caused
+    # the narrator to stop halfway through a kanji word or leave off okurigana.
+    # Pick whole sentences only; if the next sentence exceeds the budget,
+    # discard that sentence, not its final characters.
+    selected = []
+    total = 0
+    for _, sentence in chosen:
+        if total + len(sentence) > 320:
+            continue
+        selected.append(sentence.rstrip())
+        total += len(sentence)
+    brief = " ".join(selected).strip()
+    if len(brief) < 85 or not brief.endswith(("。","！","？")):
         return ""
-    brief = snippet + "。"
     if any(word.casefold() in brief.casefold() for word in NEWS_BOILERPLATE + META_SENTENCES):
         return ""
     return brief
