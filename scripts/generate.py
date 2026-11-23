@@ -2,6 +2,9 @@
 """Produce a public, facts-only morning briefing. No credentials, paid APIs, or user data."""
 import datetime as dt
 import html
+import concurrent.futures
+import email.utils
+import textwrap
 import json
 import os
 import pathlib
@@ -64,21 +67,111 @@ def forecast(city, lat, lon, today):
       "high": round(daily["temperature_2m_max"][0]),
       "rain_max": round(daily["precipitation_probability_max"][0])}
 
+def clean_news_text(raw):
+    """Normalize editorial text without injecting unverified context."""
+    raw = html.unescape(re.sub(r"<[^>]+>", " ", str(raw or "")))
+    raw = re.sub(r"\\s+", " ", raw)
+    return raw.strip()
+
+
+def news_article(item):
+    """Try source article HTML, not only an RSS headline.
+
+    We rely on the source's supplied extract rather than fabricating details.
+    Restricted/failed sources are skipped for detailed narration.
+    """
+    url = item["url"]
+    # Google News RSS links are aggregation/redirect URLs, sometimes inaccessible.
+    # Prefer the official broadcaster's direct links for trustworthy details.
+    try:
+        response = fetch(url)
+        if len(response) > 1_800_000:
+            return ""
+        import trafilatura
+        article = trafilatura.extract(response, include_comments=False, include_tables=False,
+                                     favor_precision=True, deduplicate=True, url=url)
+        article = clean_news_text(article)
+        article = re.sub(r"(関連記事|関連ニュース|シェアする|記事をシェア).*", "", article)
+        return article[:2800]
+    except Exception:
+        return ""
+
+
+def article_brief(text):
+    """Conservative extractive digest: never invent rationale or implications.
+
+    Limit source reuse and keep relevant factual sentences. When the article
+    lacks enough substance, do not treat the headline as researched news.
+    """
+    sentences = [s.strip() for s in re.split(r"(?<=[。！？])", text) if s.strip()]
+    sentences = [s for s in sentences if 18 <= len(s) <= 210 and
+                 not re.search(r"^(この記事|詳しくは|写真|提供|Copyright|\u00a9|関連|広告|続きを読む)", s)]
+    if len(sentences) < 3:
+        return ""
+    # First factual lead + two later distinct sentences including enough context.
+    chosen = []
+    for sentence in sentences:
+        normalized = re.sub(r"\\W", "", sentence)
+        if any(normalized[:22] == re.sub(r"\\W", "", other)[:22] for other in chosen):
+            continue
+        chosen.append(sentence)
+        if len(chosen) >= 4:
+            break
+    if len(chosen) < 3: return ""
+    # Limit reproduction per source: factual extracts only, not full article.
+    # Later this should be replaced by a properly licensed local summarizer.
+    return " ".join(chosen)[:340].rstrip("、。") + "。"
+
+
+def feed_entries():
+    feeds = [
+        ("NHK", "https://news.web.nhk/n-data/conf/na/rss/cat0.xml"),
+        ("NHK国際", "https://news.web.nhk/n-data/conf/na/rss/cat6.xml"),
+        ("Yahoo主要", "https://news.yahoo.co.jp/rss/topics/top-picks.xml"),
+    ]
+    results = []
+    for publisher, url in feeds:
+        try:
+            root = ET.fromstring(fetch(url))
+        except Exception:
+            continue
+        for row in root.findall(".//channel/item")[:16]:
+            title = clean_news_text(row.findtext("title"))[:160]
+            link = clean_news_text(row.findtext("link"))
+            descr = clean_news_text(row.findtext("description"))[:700]
+            if not (title and link.startswith("https://")):
+                continue
+            pub = clean_news_text(row.findtext("pubDate"))
+            results.append({"title": title, "url": link, "source": publisher,
+                            "published": pub, "feed_summary": descr})
+    return results
+
+
 def get_news():
-    url = "https://news.google.com/rss?hl=ja&gl=JP&ceid=JP:ja"
-    root = ET.fromstring(fetch(url))
-    items = []
-    for item in root.findall(".//channel/item")[:25]:
-        raw = html.unescape(item.findtext("title") or "").strip()
-        link = (item.findtext("link") or "").strip()
-        if not raw or not link.startswith("https://"): continue
-        publisher = item.findtext("source") or "配信元未確認"
-        suffix = " - " + publisher
-        if raw.endswith(suffix): raw = raw[:-len(suffix)]
-        published = item.findtext("pubDate") or ""
-        items.append({"title": re.sub(r"\s+", " ", raw)[:160],
-                      "source": publisher[:80], "published": published, "url": link})
-    return items[:5]
+    items = feed_entries()
+    seen = set()
+    candidates = []
+    for x in items:
+        key = re.sub(r"[^一-龯ぁ-んァ-ヶa-z0-9]", "", x["title"].lower())[:32]
+        if key in seen: continue
+        seen.add(key)
+        candidates.append(x)
+    # Full articles are required. Keep this bounded for free GitHub Actions.
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as pool:
+        articles = list(pool.map(news_article, candidates[:16]))
+    detailed = []
+    for item, article in zip(candidates, articles):
+        detail = article_brief(article)
+        if len(detail) < 110:
+            # Feed snippets aren't enough to pretend to offer full explanation.
+            continue
+        item["detail"] = detail
+        item["verified_article"] = True
+        detailed.append(item)
+        if len(detailed) >= 4:
+            break
+    return detailed
+
 
 def apple_preview(artist, title):
     """Read Apple's optional promotional stream URL without downloading the clip."""
@@ -137,10 +230,14 @@ def make_episode(now, weathers, news, songs, warnings):
     sections.append({"title": "川口・品川の天気", "text": "".join(texts) +
      "朝晩の寒暖差や風に合わせて服装を調整してください。気象警報・注意報は取得していないため、必要な場合は気象庁をご確認ください。"})
     if news:
-        intro = "続いてニュースです。注目の話題をお届けします。詳しい内容は画面のニュース欄から確認できます。"
+        intro = "続いてニュースです。今日は、記事本文で内容を確認できたニュースを取り上げます。"
         for idx,item in enumerate(news,1):
-            intro+=f"{idx}件目。{item['title']}。"
-    else: intro="今日のニュースは情報を取得できなかったため、未確認の見出しを補って紹介することはしません。"
+            intro += (f"まず{idx}件目。{item['title']}。"
+                      f"具体的な内容を見ていきましょう。{item['detail']} "
+                      "ここまでが、公開記事から確認できた内容です。")
+    else:
+        intro = ("続いてニュースですが、現時点では記事本文を十分に確認できませんでした。"
+                 "見出しだけで中身を推測することはせず、ニュースの解説は今回はお休みします。")
     sections.append({"title": "今日のニュース", "text": intro})
     sections.append({"title":"今日の予定とタスク", "text":
       "現在、Googleカレンダーやタスクアプリの自動連携は設定されていません。今日の予定や締切は確認できていないため、予定がないとは断定できません。カレンダーとタスク一覧を確認してください。"})
