@@ -114,7 +114,7 @@ async def main():
         for idx, filename in enumerate(section_files):
             if idx: sequence.append(f"file '{silence.name}'")
             sequence.append(f"file '{filename.name}'")
-        concat.write_text("\\n".join(sequence)+"\\n", encoding="utf-8")
+        concat.write_text("\n".join(sequence)+"\n", encoding="utf-8")
         subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
                         "-f", "concat", "-safe", "0", "-i", str(concat),
                         "-ar", "24000", "-ac", "1", "-codec:a", "libmp3lame",
