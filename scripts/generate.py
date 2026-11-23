@@ -27,6 +27,14 @@ SONGS = [
     ("Czecho No Republic", "Amazing Parade", "軽快なリズムを楽しめるポップロック"),
     ("cinema staff", "西南西の虹", "鋭いギターとドラマチックな展開"),
     ("mol-74", "ヘルツ", "透明感のある歌声と浮遊感"),
+    ("the cabs", "二月の兵隊", "繊細なギターと緊迫感のある展開"),
+    ("SHE'S", "Dance With Me", "メロディーと躍動感が印象的"),
+    ("Halo at 四畳半", "春が終わる前に", "情緒豊かなギターロック"),
+    ("go!go!vanillas", "平成ペイン", "軽快なバンドサウンド"),
+    ("フレデリック", "オドループ", "リズムに引き込まれるダンスロック"),
+    ("UNISON SQUARE GARDEN", "シュガーソングとビターステップ", "リズミカルで鮮やかなアンサンブル"),
+    ("KANA-BOON", "ないものねだり", "歯切れのいいギターとサビの勢い"),
+    ("cinema staff", "great escape", "疾走するギターとドラマ性"),
 ]
 # Previously recommended: deliberately never draw from this set.
 # Selection rotates rather than pretending to know the full 2,500+ track CSV.
@@ -448,14 +456,29 @@ def apple_preview(artist, title):
 
 
 def music(today):
+    """Recommend only tracks with a verified, playable official preview.
+
+    A search link without playable audio is not a recommendation for this
+    listening-first program. Clips are streamed directly from Apple on the
+    promotional song card: never archive or blend them into the podcast MP3.
+    """
     n = dt.date.fromisoformat(today).toordinal()
-    choices = [SONGS[(2*n+i)%len(SONGS)] for i in range(2)]
     results = []
-    for a,t,reason in choices:
-        song = {"artist":a, "title":t, "reason":reason,
-                "url":"https://music.apple.com/jp/search?term="+urllib.parse.quote(a+" "+t)}
-        song.update(apple_preview(a,t))
-        results.append(song)
+    for i in range(len(SONGS)):
+        a,t,reason = SONGS[(2*n+i)%len(SONGS)]
+        preview = apple_preview(a,t)
+        if not preview.get("preview_url"):
+            continue
+        store_url = preview.get("store_url")
+        if not store_url:
+            continue
+        results.append({
+            "artist": a, "title": t, "reason": reason,
+            "url": store_url,
+            **preview,
+        })
+        if len(results)==2:
+            break
     return results
 
 def make_episode(now, weathers, news, songs, warnings):
@@ -489,12 +512,15 @@ def make_episode(now, weathers, news, songs, warnings):
     sections.append({"title": "今日のニュース", "text": intro})
     sections.append({"title":"今日の予定とタスク", "text":
       "現在、Googleカレンダーやタスクアプリの自動連携は設定されていません。今日の予定や締切は確認できていないため、予定がないとは断定できません。カレンダーとタスク一覧を確認してください。"})
-    for i,s in enumerate(songs,1):
-        sections.append({"title":f"おすすめ音楽 {i}曲目", "text":
-          f"続いて今日のおすすめ音楽です。{s['artist']}の、{s['title']}。{s['reason']}。"
-          "気に入ったら、画面のApple Musicのリンクから再生し、お気に入りへ追加してみてください。ここで一曲、聴いてみましょう。"
-          "楽曲は番組の画面から聴いてください。",
-          "music_break": True, "song_index": i-1})
+    if songs:
+        for i,s in enumerate(songs,1):
+            sections.append({"title":f"おすすめ音楽 {i}曲目", "text":
+              f"ここからは音楽の時間です。{s['artist']}の、{s['title']}。"
+              f"{s['reason']}。それでは、試聴してみましょう。",
+              "music_break": True, "song_index": i-1})
+    else:
+        sections.append({"title":"今日の音楽", "text":
+          "今日は再生できる公式試聴音源が見つからなかったので、音楽の紹介は見送ります。"})
     sections.append({"title":"エンディング","text":
       "今日の放送はここまで。天気とニュースは更新されることがあります。最新の情報も確認して、今日もよい一日を。また明日のマイ・モーニング・ラジオでお会いしましょう。"})
     return {"date":day,"generated_at":now.isoformat(), "sections":sections,
