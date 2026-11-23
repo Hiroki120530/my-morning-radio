@@ -58,7 +58,8 @@ class RadioTest(unittest.TestCase):
         item={"title":title}
         self.assertGreaterEqual(generate.editorial_score(item),0)
         detail=("政府は中小企業向けの新たな補助金制度の導入を決定した。"
-                "対象となる企業の条件は今後公表する方針としている。")
+                "対象となる企業の条件は今後公表する方針としている。"
+                "実施時期は2027年を予定しており、担当省庁が申請方法を整備する。")
         self.assertTrue(generate.useful_news(item,detail))
         self.assertFalse(generate.useful_news(item, "【動画】首里城を上空から見た様子です。"))
 
