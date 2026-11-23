@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - 'scripts/**'
+      - 'tests/**'
       - 'site/index.html'
       - '.github/workflows/daily.yml'
   workflow_dispatch:
