@@ -17,7 +17,7 @@ button:disabled{opacity:.4;cursor:not-allowed}.primary{background:#ed9f6d;border
 .controls .primary{width:82px;height:70px;font-size:26px;border-radius:22px}.meta{color:#aeb8cb;text-align:center;font-size:13px}
 .row{display:flex;justify-content:space-between;align-items:center;gap:12px}.chapter{width:100%;text-align:left;margin:5px 0;background:transparent}
 .chapter.active{border-color:#ec9f6a;background:#2f3042}.line{border-top:1px solid #344055;padding-top:16px;margin-top:16px}
-.song{padding:18px 0;border-bottom:1px solid #344055}.song a{display:inline-block;margin-top:12px;color:#f9bf90}
+.song{padding:18px 0;border-bottom:1px solid #344055}.song.active{background:#2f3042;border-radius:12px;padding:18px}.song a{display:inline-block;margin-top:12px;color:#f9bf90}
 small, .note{font-size:12px}.note{color:#bbc4d4;line-height:1.7}.hidden{display:none}
 textarea{width:100%;background:#0f1520;color:#f4f5f8;border:1px solid #566379;border-radius:12px;padding:10px}
 a{color:#f2b27a}select{background:#26334a;color:white;border:1px solid #475972;padding:8px;border-radius:10px}
@@ -29,91 +29,157 @@ a{color:#f2b27a}select{background:#26334a;color:white;border:1px solid #475972;p
 <section class="box" aria-label="プレーヤー">
 <div class="row"><div><small class="muted">ON AIR</small><h2 id="chapterTitle">番組の準備中</h2></div><label class="muted">速度 <select id="speed"><option value="0.85">0.85</option><option value="1" selected>1.0</option><option value="1.15">1.15</option><option value="1.3">1.3</option></select></label></div>
 <div class="controls"><button id="prev" aria-label="15秒戻る">❮❮</button><button id="play" class="primary" aria-label="再生" disabled>▶</button><button id="next" aria-label="30秒進む">❯❯</button></div>
-<p class="meta" id="status" aria-live="polite">番組を読み込んでいます</p>
+<p class="meta" id="status" aria-live="polite">番組を読み込んでいます</p><div id="nativePlayer"></div>
 <div id="musicNotice" class="hidden line"><p><strong>ここでミュージックタイム。</strong>下の曲をApple Musicで再生して、聴き終えたら「番組に戻る」を押してください。</p><button class="primary" id="resume">番組に戻る ▶</button></div>
 </section>
 <section class="box"><h2>今日のラインナップ</h2><div id="chapters"></div></section>
-<section class="box"><h2>おすすめ音楽</h2><div id="songs"><p class="muted">準備中</p></div></section>
+<section class="box"><h2>今日のおすすめ曲をここで試聴</h2><div id="songs"><p class="muted">準備中</p></div></section>
 <section class="box"><h2>放送原稿</h2><p id="transcript" style="white-space:pre-wrap"></p></section>
-<p class="note">このプレーヤーは毎朝生成された日本語MP3を再生します。iPhoneでは再生開始時にタップしてください。楽曲の公式試聴が提供されている場合は、この画面で短い試聴ができます。フル再生はApple Musicアプリで行います。個人のGoogleカレンダーやToDoは未接続で、予定がないとは断定しません。</p>
+<p class="note">最初の再生操作でトークから公式試聴へ進みます。試聴は約30秒で、曲の良し悪しを判断するためのプロモーション音源です。Apple Musicでのフル再生とは異なります。iPhoneの自動再生制限により、曲の切り替え時だけ再タップが必要な場合があります。</p>
 </main>
 <script>
 'use strict';
 const $=id=>document.getElementById(id);
-let episode, chapter=0;
 const player=new Audio();
-player.preload='metadata';
-player.playsInline=true;
-player.addEventListener('play',()=>{$('play').textContent='Ⅱ';$('status').textContent='日本語音声を再生中'});
-player.addEventListener('pause',()=>{$('play').textContent='▶'});
-player.addEventListener('ended',()=>{$('status').textContent='今日の放送が終了しました';$('play').textContent='▶'});
-player.addEventListener('error',()=>{$('status').textContent='音声ファイルを再生できません。ページを更新するか、音声ファイルのリンクを開いてください'});
-function render(){
-  if(!episode)return;
-  $('date').textContent=episode.date+' の放送　｜　更新：'+new Date(episode.generated_at).toLocaleString('ja-JP');
-  $('badge').textContent='音声版';
-  $('chapterTitle').textContent='今日のラジオ番組';
-  $('chapters').replaceChildren();
-  episode.sections.forEach((s,i)=>{
-   const b=document.createElement('button'); b.className='chapter';
-   b.textContent=String(i+1).padStart(2,'0')+'　'+s.title;
-   b.addEventListener('click',()=>{chapter=i;$('transcript').textContent=s.text;$('status').textContent='原稿の表示を切り替えました。音声は一続きで再生されます。'});
-   $('chapters').appendChild(b);
-  });
-  $('transcript').textContent=episode.sections.map(s=>s.title+'\n'+s.text).join('\n\n');
-  $('songs').replaceChildren();
-  for(const song of episode.songs||[]){
-   const div=document.createElement('div');div.className='song';
-   const title=document.createElement('strong');title.textContent=song.artist+' — '+song.title;
-   const p=document.createElement('p');p.textContent=song.reason;p.className='muted';
-   const link=document.createElement('a');link.textContent='♫ Apple Musicで聴く・お気に入り登録';
-   if(typeof song.url==='string'&&song.url.startsWith('https://music.apple.com/')){link.href=song.url;link.target='_blank';link.rel='noopener noreferrer'}
-   div.append(title,p,link);
-   if(typeof song.preview_url==='string' && /^https:\/\//.test(song.preview_url)) {
-     const wrap=document.createElement('div');wrap.style.marginTop='14px';
-     const badge=document.createElement('p');badge.className='note';
-     badge.textContent='公式30秒試聴（provided courtesy of iTunes）。楽曲紹介のためのストリーミングです。';
-     const preview=document.createElement('audio');
-     preview.controls=true;preview.preload='none';preview.style.width='100%';
-     preview.src=song.preview_url;
-     preview.addEventListener('play',()=>{player.pause();document.querySelectorAll('.song audio').forEach(x=>{if(x!==preview)x.pause()})});
-     const store=document.createElement('a');store.textContent='Appleでこの楽曲を見る';
-     store.href=(typeof song.store_url==='string'&&song.store_url.startsWith('https://'))?song.store_url:song.url;
-     store.target='_blank';store.rel='noopener noreferrer';
-     wrap.append(badge,preview,store);div.appendChild(wrap);
-   } else {
-     const note=document.createElement('p');note.className='note';
-     note.textContent='この曲の公式試聴は現在取得できません。Apple Musicでフル再生できます。';
-     div.appendChild(note);
-   }
-   $('songs').appendChild(div);
-  }
-
+player.controls=true;player.preload='none';player.playsInline=true;
+player.style.width='100%';player.style.marginTop='12px';
+let episode=null,queue=[],cursor=0,autoContinue=true,playingStarted=false;
+let volumeReady=false;
+const isPreview=x=>x&&x.type==='official_preview';
+const current=()=>queue[cursor];
+const status=s=>{$('status').textContent=s};
+function songLabel(index){const s=episode.songs?.[index];return s?s.artist+' — '+s.title:'おすすめ音楽'}
+function setButtons(){
+ $('play').textContent=player.paused?'▶':'Ⅱ';
+ $('play').disabled=!queue.length;
 }
-$('play').addEventListener('click',async()=>{
- if(!episode?.audio_url)return;
- if(player.paused){try{await player.play()}catch(e){$('status').textContent='再生できませんでした：'+e.message+'。音声ファイルの直接再生をお試しください。'}}
- else player.pause();
-});
-$('prev').addEventListener('click',()=>{player.currentTime=Math.max(0,player.currentTime-15)});
-$('next').addEventListener('click',()=>{if(Number.isFinite(player.duration))player.currentTime=Math.min(player.duration,player.currentTime+30)});
-$('speed').addEventListener('change',()=>{player.playbackRate=Number($('speed').value)});
-$('resume').addEventListener('click',()=>player.play());
-fetch('./episode.json?v='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw Error('番組データが見つかりません');return r.json()}).then(data=>{
- episode=data;if(!Array.isArray(data.sections)||!data.sections.length)throw Error('番組データが不正です');
- render();
- if(typeof data.audio_url!=='string'||!/^broadcast\.mp3$/.test(data.audio_url)){
-   $('status').textContent='音声ファイルがまだ生成されていません。GitHub Actionsの完了をご確認ください。';return;
+function updateNowPlaying(){
+ const item=current();if(!item)return;
+ const label=isPreview(item)?'楽曲を試聴中：'+songLabel(item.song_index):
+       'ON AIR：'+(episode.sections[item.section_index]?.title||'ラジオ');
+ $('chapterTitle').textContent=label;
+ status(isPreview(item)?'Apple公式の試聴音源が流れています。聴き終えると番組に戻ります。':'ナレーションを再生中');
+ document.querySelectorAll('.song').forEach((el,i)=>{
+  el.classList.toggle('active',isPreview(item)&&item.song_index===i);
+ });
+ document.querySelectorAll('.chapter').forEach((el,i)=>{
+  el.classList.toggle('active',!isPreview(item)&&item.section_index===i);
+ });
+}
+function loadTrack(index){
+ if(index<0||index>=queue.length)return false;
+ cursor=index;
+ const item=queue[index];
+ if(isPreview(item)){
+  const s=episode.songs?.[item.song_index];
+  if(!s||!/^https:\/\//.test(s.preview_url||''))return false;
+  player.src=s.preview_url;
+  player.playbackRate=1; // Previews must be streamed unchanged.
+ }else{
+  const url=item.url;
+  if(!/^segments\/section-\d\d\.mp3$/.test(url||'')&&!/^broadcast\.mp3$/.test(url||''))return false;
+  player.src='./'+url+'?v='+encodeURIComponent(episode.generated_at||'');
+  player.playbackRate=Number($('speed').value);
  }
- const audioUrl='./'+data.audio_url+'?v='+encodeURIComponent(data.generated_at||'');
- player.src=audioUrl;
- $('play').disabled=false;
- $('status').textContent='▶ を押すと実際のMP3音声が再生されます';
- const direct=document.createElement('p'),a=document.createElement('a');
- a.href=audioUrl;a.textContent='音が出ない場合：MP3を直接開いて再生';a.target='_blank';a.rel='noopener noreferrer';
- direct.appendChild(a);$('status').after(direct);
- const native=document.createElement('audio');native.controls=true;native.preload='metadata';native.src=audioUrl;
- native.style.width='100%';native.style.marginTop='14px';$('status').after(native);
-}).catch(e=>{$('status').textContent='番組を読み込めませんでした：'+e.message});
+ player.load();updateNowPlaying();setButtons();return true;
+}
+async function startTrack(index){
+ if(!loadTrack(index))return false;
+ try{
+  await player.play();playingStarted=true;setButtons();return true;
+ }catch(e){
+  status('自動再生が制限されました。オレンジの再生ボタンを一度押すと続きから聴けます。');
+  setButtons();return false;
+ }
+}
+async function advance(){
+ if(!autoContinue)return;
+ if(cursor+1>=queue.length){status('今日の番組はここまで。お疲れさまでした。');setButtons();return}
+ await startTrack(cursor+1);
+}
+player.addEventListener('play',()=>{playingStarted=true;setButtons();updateNowPlaying()});
+player.addEventListener('pause',setButtons);
+player.addEventListener('ended',advance);
+player.addEventListener('error',()=>{
+ status('音声の取得に失敗しました。次のトークへ進む場合は「次へ」を押してください。');
+ setButtons();
+});
+function render(){
+ $('date').textContent=episode.date+' の放送　｜　更新：'+new Date(episode.generated_at).toLocaleString('ja-JP');
+ $('badge').textContent='曲も聴ける番組';
+ $('transcript').textContent=episode.sections.map(s=>s.title+'\n'+s.text).join('\n\n');
+ $('chapters').replaceChildren();
+ episode.sections.forEach((s,i)=>{
+  const b=document.createElement('button');b.className='chapter';
+  b.textContent=String(i+1).padStart(2,'0')+'　'+s.title;
+  b.onclick=()=>{const idx=queue.findIndex(q=>q.type==='narration'&&q.section_index===i);if(idx>=0)startTrack(idx)};
+  $('chapters').append(b);
+ });
+ $('songs').replaceChildren();
+ for(let i=0;i<(episode.songs||[]).length;i++){
+  const song=episode.songs[i],div=document.createElement('div');div.className='song';
+  const heading=document.createElement('strong');heading.textContent=song.artist+' — '+song.title;
+  const about=document.createElement('p');about.textContent=song.reason;about.className='muted';
+  const details=document.createElement('p');details.className='note';
+  details.textContent='約30秒の公式試聴。provided courtesy of iTunes';
+  div.append(heading,about,details);
+  const row=document.createElement('div');row.className='row';row.style.flexWrap='wrap';row.style.justifyContent='flex-start';
+  const playSong=document.createElement('button');playSong.className='primary';playSong.textContent='♫ この曲を試聴';
+  const index=queue.findIndex(q=>isPreview(q)&&q.song_index===i);
+  playSong.onclick=()=>{if(index>=0)startTrack(index)};
+  playSong.disabled=index<0;row.append(playSong);
+  const store=document.createElement('a');store.className='action';store.textContent='Apple Musicで曲を確認';
+  store.href=(typeof song.store_url==='string'&&song.store_url.startsWith('https://'))?song.store_url:song.url;
+  store.rel='noopener noreferrer';store.target='_blank';row.append(store);
+  div.append(row);
+  const decisions=document.createElement('div');decisions.className='row';decisions.style.justifyContent='flex-start';
+  decisions.style.marginTop='10px';
+  const feedback=document.createElement('small');feedback.className='muted';
+  const key='mmradio-reaction-'+song.artist+'-'+song.title;
+  let saved='';try{saved=localStorage.getItem(key)||''}catch(e){}
+  feedback.textContent=saved==='like'?'この端末ではお気に入り':saved==='skip'?'この端末では見送り':'';
+  for(const [value,label] of [['like','気に入った'],['skip','今回は違う']]){
+   const b=document.createElement('button');b.textContent=label;b.style.padding='8px 12px';
+   b.onclick=()=>{try{localStorage.setItem(key,value)}catch(e){}feedback.textContent=value==='like'?'この端末ではお気に入り':'この端末では見送り'};
+   decisions.append(b);
+  }
+  decisions.append(feedback);div.append(decisions);
+  $('songs').append(div);
+ }
+ const box=$('nativePlayer');box.replaceChildren();box.append(player);
+}
+$('play').onclick=async()=>{
+ if(!episode||!queue.length)return;
+ if(!player.src){await startTrack(cursor);return}
+ if(player.paused){try{await player.play()}catch(e){status('再生できませんでした。Safariで再読み込みしてお試しください。')}}
+ else player.pause();
+};
+$('prev').onclick=()=>{if(!episode)return;player.currentTime=Math.max(0,player.currentTime-15)};
+$('next').onclick=async()=>{if(!episode)return;if(cursor+1<queue.length)await startTrack(cursor+1);else status('番組の最後です')};
+$('speed').onchange=()=>{if(!isPreview(current()))player.playbackRate=Number($('speed').value)};
+$('resume').onclick=()=>advance();
+fetch('./episode.json?v='+Date.now(),{cache:'no-store'})
+ .then(r=>{if(!r.ok)throw Error('番組が見つかりません');return r.json()})
+ .then(data=>{
+  if(!Array.isArray(data.sections)||!data.sections.length)throw Error('原稿がありません');
+  episode=data;
+  queue=Array.isArray(data.playlist)?data.playlist.filter(item=>
+    (item.type==='narration'&&/^segments\/section-\d\d\.mp3$/.test(item.url||''))||
+    (item.type==='official_preview'&&typeof item.song_index==='number'&&
+     /^https:\/\//.test(data.songs?.[item.song_index]?.preview_url||''))
+  ):[];
+  if(!queue.length&&data.audio_url==='broadcast.mp3'){
+   queue=[{type:'narration',section_index:0,url:'broadcast.mp3'}];
+  }
+  render();
+  if(!queue.length){status('音声ファイルがまだ生成されていません');return}
+  $('play').disabled=false;status('▶ を1回押すとトークと試聴が順番に流れます');
+  // Do not call play() before a user gesture. A single audio element is
+  // reused throughout to maximize iPhone Safari's autoplay compatibility.
+  // iOS may still require a tap if it rejects the switch to Apple's domain.
+  loadTrack(0);
+  status('▶ を1回押すと番組が始まり、音楽の試聴も順番に流れます');
+ })
+ .catch(e=>status('番組を読み込めませんでした：'+e.message));
 </script>
 </body></html>
