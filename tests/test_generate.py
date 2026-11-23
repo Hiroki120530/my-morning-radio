@@ -69,7 +69,7 @@ class RadioTest(unittest.TestCase):
         text=("政府は企業向けの新たな支援制度の導入を決定した。"
               "2027年に実施する方針で、対象企業への案内を始める。"
               "詳細な条件は今後公表されるとしている。")
-        with patch.object(generate,"feed_entries",return_value=[bad,good]), \\
+        with patch.object(generate,"feed_entries",return_value=[bad,good]), \
              patch.object(generate,"news_article",return_value=text) as read:
             news=generate.get_news()
         self.assertEqual(read.call_count,1)
