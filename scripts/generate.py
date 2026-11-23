@@ -81,10 +81,14 @@ def news_article(item):
         response = fetch(url)
         if len(response) > 2_400_000:
             return ""
-        import trafilatura
-        article = trafilatura.extract(response, include_comments=False, include_tables=False,
-                                     favor_precision=False, deduplicate=True, url=url)
-        article = clean_news_text(article)
+        article = ""
+        try:
+            import trafilatura
+            article = trafilatura.extract(response, include_comments=False, include_tables=False,
+                                         favor_precision=False, deduplicate=True, url=url)
+            article = clean_news_text(article)
+        except Exception as parse_error:
+            print(f'NEWS DIAGNOSTIC extractor issue: {type(parse_error).__name__}: {parse_error}', flush=True)
         if len(article) < 250:
             # Many modern news sites hydrate pages with JSON-LD, or have
             # article paragraphs that generic extractors fail to recognize.
@@ -106,7 +110,7 @@ def news_article(item):
         article = re.sub(r"(関連記事|関連ニュース|シェアする|記事をシェア).*", "", article)
         return article[:3000]
     except Exception as exc:
-        print(f'NEWS DIAGNOSTIC article inaccessible: {item["source"]} {type(exc).__name__}', flush=True)
+        print(f'NEWS DIAGNOSTIC article inaccessible: {item["source"]} {type(exc).__name__}: {str(exc)[:110]}', flush=True)
         return ""
 
 
