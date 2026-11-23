@@ -10,7 +10,7 @@ class RadioTest(unittest.TestCase):
         fake={"川口市":{"low":4,"high":15,"rain_max":5,"hours":[{"hour":h,"temp":10,"rain":5,"weather":"晴れ","wind":5} for h in (7,12,18,21)]}}
         ep=generate.make_episode(now,fake,[],generate.music("2026-11-24"),[])
         self.assertEqual(ep["calendar_status"],"not_connected")
-        self.assertIn("未確認",ep["sections"][3]["text"])
+        self.assertIn("確認できていない",ep["sections"][3]["text"])
         self.assertNotIn("予定はありません",ep["sections"][3]["text"])
     def test_no_paid_api_usage_or_credentials(self):
         import inspect
