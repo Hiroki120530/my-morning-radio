@@ -144,22 +144,29 @@ def feed_entries():
         ("Yahoo主要", "https://news.yahoo.co.jp/rss/topics/top-picks.xml"),
         ("ITmedia", "https://news.yahoo.co.jp/rss/media/zdn_n/all.xml"),
     ]
-    results = []
-    for publisher, url in feeds:
+    batches = []
+    for publisher,url in feeds:
         try:
             root = ET.fromstring(fetch(url))
         except Exception:
             continue
-        for row in root.findall(".//channel/item")[:16]:
+        current = []
+        for row in root.findall(".//channel/item")[:12]:
             title = clean_news_text(row.findtext("title"))[:160]
             link = clean_news_text(row.findtext("link"))
-            descr = clean_news_text(row.findtext("description"))[:700]
-            if not (title and link.startswith("https://")):
+            description = clean_news_text(row.findtext("description"))[:700]
+            if not title or not link.startswith("https://"):
                 continue
-            pub = clean_news_text(row.findtext("pubDate"))
-            results.append({"title": title, "url": link, "source": publisher,
-                            "published": pub, "feed_summary": descr})
-    return results
+            current.append({"title":title,"url":link,"source":publisher,
+                            "published":clean_news_text(row.findtext("pubDate")),
+                            "feed_summary":description})
+        if current: batches.append(current)
+    # Interleave sources: don't let a single broadcaster use all 16 slots.
+    result = []
+    for index in range(12):
+        for batch in batches:
+            if index < len(batch): result.append(batch[index])
+    return result
 
 
 def get_news():
