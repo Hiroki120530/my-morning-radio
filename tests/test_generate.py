@@ -44,6 +44,37 @@ class RadioTest(unittest.TestCase):
         body = "地図から選ぶ。NHK ONEはどなたでもご利用になれます。カテゴリから選ぶ。"
         self.assertEqual(generate.article_brief(body, "ニュース"), "")
 
+    def test_visual_teasers_rejected_before_fetch(self):
+        for title in (
+            "【動画】上空から見た首里城正殿は？",
+            "【写真】上空から見た首里城の様子を紹介",
+            "写真で見る 首里城の現在の姿は？",
+            "【映像】現場で何が起きた？",
+        ):
+            self.assertEqual(generate.editorial_score({"title":title}),-1,title)
+
+    def test_substantive_news_passes_editorial_gate(self):
+        title="政府が新たな補助金制度の導入を決定 2027年から実施"
+        item={"title":title}
+        self.assertGreaterEqual(generate.editorial_score(item),0)
+        detail=("政府は中小企業向けの新たな補助金制度の導入を決定した。"
+                "対象となる企業の条件は今後公表する方針としている。")
+        self.assertTrue(generate.useful_news(item,detail))
+        self.assertFalse(generate.useful_news(item, "【動画】首里城を上空から見た様子です。"))
+
+    def test_editorial_filter_applies_before_news_article_fetch(self):
+        bad={"title":"【動画】上空から見た首里城正殿は？","url":"https://example.com/video","source":"test"}
+        good={"title":"政府が企業向け支援制度の導入を決定 2027年に実施",
+              "url":"https://example.com/story","source":"test"}
+        text=("政府は企業向けの新たな支援制度の導入を決定した。"
+              "2027年に実施する方針で、対象企業への案内を始める。"
+              "詳細な条件は今後公表されるとしている。")
+        with patch.object(generate,"feed_entries",return_value=[bad,good]), \\
+             patch.object(generate,"news_article",return_value=text) as read:
+            news=generate.get_news()
+        self.assertEqual(read.call_count,1)
+        self.assertFalse(any("首里城" in story["title"] for story in news))
+
     def test_music_urls_are_apple_search(self):
         self.assertEqual(len(generate.music("2026-11-24")),2)
         self.assertTrue(all(x["url"].startswith("https://music.apple.com/jp/search?term=") for x in generate.music("2026-11-24")))
