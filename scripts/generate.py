@@ -196,7 +196,7 @@ def article_brief(article, title=""):
     snippet = " ".join(s for _,s in chosen)[:235].rstrip("、。 ")
     if len(snippet) < 85:
         return ""
-    brief = "このニュースでは、" + snippet + "。"
+    brief = snippet + "。"
     if any(word.casefold() in brief.casefold() for word in NEWS_BOILERPLATE + META_SENTENCES):
         return ""
     return brief
@@ -323,7 +323,7 @@ def make_episode(now, weathers, news, songs, warnings):
         # No headline roundup and no templated tail sentence. Each item must
         # be understood through one compact spoken factual digest.
         stories = [item["detail"].strip() for item in news if item.get("detail")]
-        intro = "続いて、今日のニュースです。 " + " 少し話題を変えましょう。 ".join(stories)
+        intro = "続いて、今日のニュースです。 " + " 続いては、 ".join(stories)
     else:
         intro = ("続いてニュースです。今日は記事本文の確認ができなかったため、"
                  "不確かな内容を読み上げることは控えます。")
