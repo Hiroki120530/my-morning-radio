@@ -84,9 +84,42 @@ async def main():
         scratch = Path(temporary)
         speech_file = scratch / "speech.mp3"
         bgm_file = scratch / "original-morning-theme.wav"
-        # Nanami is less robotic than the previous default Keita voice.
+        # Create sections independently so the narrator takes real breathing
+        # pauses, rather than one long monotonous paragraph.
+        sections = [s for s in episode.get("sections", []) if s.get("text", "").strip()]
         voice = "ja-JP-NanamiNeural"
-        await edge_tts.Communicate(text, voice, rate="-2%", pitch="-1Hz").save(str(speech_file))
+        section_files = []
+        for idx, section in enumerate(sections):
+            segment = scratch / f"voice-{idx:02d}.mp3"
+            title = section.get("title", "")
+            pace = "-3%" if "ニュース" in title else "+1%"
+            pitch = "-2Hz" if "ニュース" in title else "+0Hz"
+            # A conversational delivery benefits from sentence punctuation;
+            # the exact voices offered depend on the free TTS service.
+            spoken = section["text"].replace("。", "。 ").replace("、", "、 ")
+            await edge_tts.Communicate(spoken, voice, rate=pace, pitch=pitch).save(str(segment))
+            if segment.stat().st_size < 1300:
+                raise RuntimeError(f"Empty section audio: {idx}")
+            section_files.append(segment)
+
+        # Insert a natural 650ms gap between topics. This is a real gap in
+        # the MP3, unlike newlines supplied to the TTS engine.
+        silence = scratch / "gap.mp3"
+        subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+                        "-f", "lavfi", "-i", "anullsrc=r=24000:cl=mono",
+                        "-t", "0.65", "-codec:a", "libmp3lame", "-q:a", "4",
+                        str(silence)], check=True, timeout=25)
+        concat = scratch / "segments.txt"
+        sequence = []
+        for idx, filename in enumerate(section_files):
+            if idx: sequence.append(f"file '{silence.name}'")
+            sequence.append(f"file '{filename.name}'")
+        concat.write_text("\\n".join(sequence)+"\\n", encoding="utf-8")
+        subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+                        "-f", "concat", "-safe", "0", "-i", str(concat),
+                        "-ar", "24000", "-ac", "1", "-codec:a", "libmp3lame",
+                        "-q:a", "4", str(speech_file)],
+                       cwd=scratch, check=True, timeout=120)
         if speech_file.stat().st_size < 8192:
             raise RuntimeError("Failed to generate meaningful speech")
         generate_original_bgm(bgm_file)
