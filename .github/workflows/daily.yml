@@ -10,8 +10,10 @@ on:
       - '.github/workflows/daily.yml'
   workflow_dispatch:
   schedule:
-    # JST 06:40 = UTC 21:40 on previous day.
-    - cron: '40 21 * * *'
+    # GitHub can delay or drop scheduled jobs. Use staggered off-peak
+    # retries: 06:43, 06:53, 07:07 and 07:23 JST (previous day UTC).
+    - cron: '43,53 21 * * *'
+    - cron: '7,23 22 * * *'
 permissions:
   contents: read
   pages: write
@@ -30,24 +32,48 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Check whether today's public episode already exists
+        id: freshness
+        if: github.event_name == 'schedule'
+        shell: bash
+        run: |
+          TODAY=$(TZ=Asia/Tokyo date +%F)
+          URL="https://hiroki120530.github.io/my-morning-radio/episode.json?check=$(date +%s)"
+          REMOTE_DATE=$(curl --fail --silent --show-error --max-time 15 -H 'Cache-Control: no-cache' "$URL" | python -c 'import json,sys; print(json.load(sys.stdin).get("date", ""))' || true)
+          if [ "$REMOTE_DATE" = "$TODAY" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Daily episode for $TODAY is already published; no duplicate build."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "New episode needed: today=$TODAY published=$REMOTE_DATE"
+          fi
       - name: Install free audio and news tools
+        if: steps.freshness.outputs.skip != 'true'
         run: python -m pip install edge-tts trafilatura beautifulsoup4
       - name: Verify news narration regressions
+        if: steps.freshness.outputs.skip != 'true'
         run: python -m unittest discover -s tests -v
       - name: Build public episode
+        if: steps.freshness.outputs.skip != 'true'
         run: python scripts/generate.py
       - name: Proofread Japanese script before voice recording
+        if: steps.freshness.outputs.skip != 'true'
         run: python scripts/proofread.py
       - name: Install audio mixer
+        if: steps.freshness.outputs.skip != 'true'
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg
       - name: Generate actual Japanese MP3
+        if: steps.freshness.outputs.skip != 'true'
         run: python scripts/audio.py
       - uses: actions/configure-pages@v5
+        if: steps.freshness.outputs.skip != 'true'
       - uses: actions/upload-pages-artifact@v3
+        if: steps.freshness.outputs.skip != 'true'
         with:
           path: site
       - name: Deploy Pages
+        if: steps.freshness.outputs.skip != 'true'
         id: deployment
         uses: actions/deploy-pages@v4
