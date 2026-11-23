@@ -145,6 +145,48 @@ async def main():
              "-t", f"{total_duration:.3f}",
              "-ar", "44100", "-ac", "2", "-codec:a", "libmp3lame", "-q:a", "4",
              str(AUDIO)], check=True, timeout=150)
+        # Create original-narration chapters from the *mixed* MP3. These
+        # keep the approved BGM, while allowing the web player to interleave
+        # an external, streamed iTunes promotional sample immediately after
+        # the song introduction. Commercial previews are NEVER downloaded,
+        # cached in our build, or inserted into a downloadable audio file.
+        segments_dir = ROOT / "site" / "segments"
+        segments_dir.mkdir(parents=True, exist_ok=True)
+        for stale in segments_dir.glob("section-*.mp3"):
+            stale.unlink()
+        lengths = [probe_duration(path) for path in section_files]
+        playlist = []
+        elapsed = 4.6
+        for idx, section in enumerate(sections):
+            # The first section includes the original opening instrumental.
+            begin = 0 if idx == 0 else elapsed
+            length = lengths[idx] + (4.6 if idx == 0 else 0)
+            if idx < len(sections) - 1:
+                length += 0.65
+            else:
+                length += 2.4
+            path = segments_dir / f"section-{idx:02d}.mp3"
+            subprocess.run([
+                "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+                "-ss", f"{begin:.3f}", "-i", str(AUDIO),
+                "-t", f"{length:.3f}", "-ac", "2", "-ar", "44100",
+                "-codec:a", "libmp3lame", "-q:a", "5", str(path),
+            ], check=True, timeout=45)
+            if path.stat().st_size < 800:
+                raise RuntimeError(f"Missing chapter audio {idx}")
+            playlist.append({"type":"narration", "section_index":idx,
+                             "url":f"segments/section-{idx:02d}.mp3"})
+            elapsed += lengths[idx] + (0.65 if idx < len(sections) - 1 else 0)
+            if section.get("music_break"):
+                song_i = section.get("song_index")
+                if isinstance(song_i,int) and 0<=song_i<len(episode.get("songs",[])):
+                    song = episode["songs"][song_i]
+                    if str(song.get("preview_url","")).startswith("https://"):
+                        playlist.append({"type":"official_preview", "song_index":song_i,
+                                         "url":song["preview_url"]})
+        episode["playlist"] = playlist
+        episode["playback_mode"] = "in_page_radio_with_promotional_previews"
+        print(f"Prepared {len(sections)} narrated chapters and {sum(x['type']=='official_preview' for x in playlist)} official song previews")
     if AUDIO.stat().st_size < 16384:
         raise RuntimeError("Final MP3 is unexpectedly small")
     episode.update(
