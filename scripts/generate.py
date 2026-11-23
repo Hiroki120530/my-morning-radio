@@ -70,7 +70,7 @@ def forecast(city, lat, lon, today):
 def clean_news_text(raw):
     """Normalize editorial text without injecting unverified context."""
     raw = html.unescape(re.sub(r"<[^>]+>", " ", str(raw or "")))
-    raw = re.sub(r"\\s+", " ", raw)
+    raw = re.sub(r"\s+", " ", raw)
     return raw.strip()
 
 
@@ -153,7 +153,7 @@ def article_brief(article, title=""):
     # paragraphs before promoting candidate sentences.
     for garbage in META_SENTENCES:
         text = text.replace(garbage, " ")
-    sentences = re.split(r"(?<=[。！？!?])\\s*|[\\r\\n]+", text)
+    sentences = re.split(r"(?<=[。！？!?])\s*|[\r\n]+", text)
     candidates = []
     for index, raw in enumerate(sentences):
         s = re.sub(r"\\s+", " ", raw).strip(" ・-　")
