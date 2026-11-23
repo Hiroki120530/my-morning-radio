@@ -31,7 +31,7 @@ jobs:
       - name: Build public episode
         run: python scripts/generate.py
       - name: Install free TTS generator
-        run: python -m pip install edge-tts
+        run: python -m pip install edge-tts trafilatura
       - name: Install audio mixer
         run: |
           sudo apt-get update -qq
