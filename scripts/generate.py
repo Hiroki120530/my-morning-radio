@@ -285,7 +285,7 @@ def editorial_score(item):
 
 def useful_news(item, detail):
     """Never air a story solely because an HTML page produced text."""
-    if editorial_score(item) < 0 or len(detail) < 90:
+    if editorial_score(item) < 0 or len(detail) < 80:
         return False
     if VISUAL_TEASER.search(detail) or any(x in detail for x in NEWS_BOILERPLATE):
         return False
