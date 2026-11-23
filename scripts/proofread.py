@@ -35,6 +35,53 @@ MISSING_KANA_AFTER_VERB_STEM = re.compile(
 BRACKETS = {"（":"）","「":"」","『":"』","【":"】","(" : ")"}
 
 
+ROUND_BRACKETS = re.compile(r"[（(]([^（）()]*)[）)]")
+# These annotations can safely be integrated without changing the claim.
+SHORT_FORMS = re.compile(r"^[A-Za-z][A-Za-z0-9.-]{1,12}$")
+READING_HINT = re.compile(r"^[ぁ-んァ-ヶー・]{2,24}$")
+MEANING_HINT = re.compile(r"^[一-龯ぁ-んァ-ヶー・]{2,24}$")
+PARENTHETICAL_NOTES = ("以下", "注", "写真", "動画", "出典", "関連", "詳しくは")
+
+
+def naturalize_parentheses(text):
+    """Rewrite limited safe parentheticals; reject anything ambiguous.
+
+    E.g. 'AI（人工知能）' -> '人工知能', '防災（ぼうさい）' -> '防災'.
+    Information-heavy parentheticals are sent back to editorial selection,
+    not clumsily read with brackets or silently deleted.
+    """
+    text = str(text or "")
+    if not any(symbol in text for symbol in "()（）"):
+        return text
+    if any(text.count(op) != text.count(cl) for op,cl in (("（","）"),("(",")"))):
+        raise ValueError("unbalanced_round_parentheses")
+    def replace(match):
+        content = match.group(1).strip()
+        before = text[:match.start()]
+        head = re.search(r"([A-Za-z][A-Za-z0-9.-]{1,15}|[一-龯ぁ-んァ-ヶー]{2,16})$", before)
+        if not head or not content or any(x in content for x in PARENTHETICAL_NOTES):
+            raise ValueError("ambiguous_parenthetical")
+        prefix = head.group(1)
+        # Remove simple reading guides, preserving the written noun.
+        if READING_HINT.fullmatch(content) and re.search(r"[一-龯]",prefix):
+            return ""
+        # '人工知能（AI）' -> '人工知能'; the acronym is redundant for listening.
+        if SHORT_FORMS.fullmatch(content) and re.search(r"[一-龯]",prefix):
+            return ""
+        # 'AI（人工知能）' -> '人工知能', easier to follow by ear.
+        if SHORT_FORMS.fullmatch(prefix) and MEANING_HINT.fullmatch(content):
+            return content
+        raise ValueError("ambiguous_parenthetical")
+    # For acronym-to-full-name replacement the prefix must also be removed.
+    # Deal with this first using a dedicated expression.
+    text = re.sub(r"\b[A-Za-z][A-Za-z0-9.-]{1,15}[（(]([一-龯ぁ-んァ-ヶー・]{2,24})[）)]",
+                  lambda m: m.group(1),text)
+    text = ROUND_BRACKETS.sub(replace,text)
+    if any(x in text for x in "()（）"):
+        raise ValueError("remaining_round_parentheses")
+    return text
+
+
 def tidy_typography(text):
     """Whitespace and punctuation only: no speculative grammatical edits."""
     text = str(text or "").replace("\u3000", " ").replace("\u200b", "")
@@ -49,6 +96,8 @@ def defects(text, *, news=False):
     issues = []
     if not text:
         return ["empty"]
+    if any(x in text for x in "()（）"):
+        issues.append("round_parentheses_in_narration")
     for marker in NOISE:
         if marker in text:
             issues.append("website_furniture:" + marker)
@@ -89,7 +138,14 @@ def validate_and_polish_episode(episode):
               "rejected_news":[], "warnings":[]}
     for section in episode["sections"]:
         old = section.get("text","")
-        new = tidy_typography(old)
+        try:
+            new = tidy_typography(naturalize_parentheses(old))
+        except ValueError:
+            # News narration is rebuilt from verified stories below.
+            if section.get("title") == "今日のニュース":
+                new = ""
+            else:
+                raise ValueError(f"Ambiguous parentheses in core section: {section.get('title')}")
         if new != old:
             report["corrected"] += 1
         section["text"] = new
@@ -97,8 +153,12 @@ def validate_and_polish_episode(episode):
     checked_news = []
     for item in episode.get("news",[]):
         old = item.get("detail","")
-        new = tidy_typography(old)
-        errors = defects(new, news=True)
+        try:
+            new = tidy_typography(naturalize_parentheses(old))
+            errors = defects(new, news=True)
+        except ValueError:
+            errors = ["ambiguous_parenthetical"]
+            new = old
         if errors:
             report["rejected_news"].append({"title":item.get("title",""),"issues":errors})
             continue
