@@ -105,8 +105,35 @@ class RadioTest(unittest.TestCase):
         self.assertNotIn("https://",spoken)
         self.assertNotIn("出典",spoken)
 
-    def test_music_urls_are_apple_search(self):
-        self.assertEqual(len(generate.music("2026-11-24")),2)
-        self.assertTrue(all(x["url"].startswith("https://music.apple.com/jp/search?term=") for x in generate.music("2026-11-24")))
+    def test_only_songs_with_playable_previews_are_recommended(self):
+        with patch.object(generate,"apple_preview",side_effect=lambda a,t:{
+            "preview_url":"https://audio-ssl.itunes.apple.com/example.m4a",
+            "store_url":"https://music.apple.com/jp/album/example/123"
+        }):
+            songs=generate.music("2026-11-24")
+        self.assertEqual(len(songs),2)
+        self.assertTrue(all(x["preview_url"].startswith("https://") for x in songs))
+        self.assertTrue(all(x["store_url"].startswith("https://") for x in songs))
+
+    def test_no_song_when_not_playable(self):
+        with patch.object(generate,"apple_preview",return_value={}):
+            songs=generate.music("2026-11-24")
+        self.assertEqual(songs,[])
+        now=dt.datetime(2026,11,24,6,40,tzinfo=ZoneInfo("Asia/Tokyo"))
+        ep=generate.make_episode(now,{},[],songs,[])
+        self.assertFalse(any(s.get("music_break") for s in ep["sections"]))
+        self.assertFalse("リンクから再生" in str(ep["sections"]))
+
+    def test_song_is_introduced_for_in_programme_playback(self):
+        with patch.object(generate,"apple_preview",return_value={
+            "preview_url":"https://audio-ssl.itunes.apple.com/example.m4a",
+            "store_url":"https://music.apple.com/jp/album/example/123"}):
+            songs=generate.music("2026-11-24")
+        now=dt.datetime(2026,11,24,6,40,tzinfo=ZoneInfo("Asia/Tokyo"))
+        ep=generate.make_episode(now,{},[],songs,[])
+        music_sections=[s for s in ep["sections"] if s.get("music_break")]
+        self.assertEqual(len(music_sections),2)
+        self.assertIn("試聴してみましょう", music_sections[0]["text"])
+        self.assertNotIn("リンク",music_sections[0]["text"])
 
 if __name__=="__main__": unittest.main()
