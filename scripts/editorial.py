@@ -126,7 +126,7 @@ def review_script(script, evidence, title=""):
     return sorted(set(errors))
 
 
-def ollama_write(headline, articles, call=None):
+def ollama_write(headline, articles, call=None, feedback=''):
     """Generate a first-draft JSON response from the locally running model."""
     if call is None:
         def call(payload):
@@ -145,7 +145,9 @@ def ollama_write(headline, articles, call=None):
         "messages":[
             {"role":"system","content":SYSTEM},
             {"role":"user","content":"注目する話題: "+headline+"\n\n"+bundle+
-             "\n\nこの資料から確認できる事実だけで、原文と異なる自然な日本語の独自原稿を書いてください。"}
+             "\n\nこの資料から確認できる事実だけで、原文と異なる自然な日本語の独自原稿を書いてください。"
+             "省略しすぎず、出来事、裏付けとなる詳細、意味が分かる順番で3〜5つの完結した文にしてください。"
+             + ("\n前稿が不合格でした。"+feedback+" 同じ文章を出さず一から書き直してください。" if feedback else "")}
         ]
     }
     result = call(payload)
@@ -162,13 +164,19 @@ def write_original_brief(item, articles, model_call=None):
             evidence.append((source,cleaned))
     if not evidence:
         return ""
-    try:
-        script=ollama_write(item.get("title",""),evidence,call=model_call).strip()
-    except (ValueError,KeyError,TypeError,urllib.error.URLError,TimeoutError) as exc:
-        print("NEWS EDITOR: local model unavailable:",type(exc).__name__,flush=True)
-        return ""
-    errors=review_script(script,[x[1] for x in evidence],item.get("title",""))
-    if errors:
-        print("NEWS EDITOR: story rejected",errors,item.get("title","")[:60],flush=True)
-        return ""
-    return script
+    last_errors=[]
+    for attempt in range(2):
+        try:
+            script=ollama_write(
+                item.get("title",""),evidence,call=model_call,
+                feedback="不自然、原文と近すぎる、または説明が短すぎます。別の言い回しで3〜5文、約150〜230字にしてください。"
+                if attempt else ""
+            ).strip()
+        except (ValueError,KeyError,TypeError,urllib.error.URLError,TimeoutError) as exc:
+            print("NEWS EDITOR: local model unavailable:",type(exc).__name__,flush=True)
+            return ""
+        last_errors=review_script(script,[x[1] for x in evidence],item.get("title",""))
+        if not last_errors:
+            return script
+    print("NEWS EDITOR: story rejected",last_errors,item.get("title","")[:60],flush=True)
+    return ""
