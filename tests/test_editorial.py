@@ -57,6 +57,21 @@ class EditorialTests(unittest.TestCase):
             {"title":"政府は支援制度を発表"},[("NHK",self.source)],model_call=ai)
         self.assertEqual(output,"")
 
+    def test_short_draft_gets_rewritten_not_published(self):
+        calls=[]
+        def ai(payload):
+            calls.append(payload)
+            if len(calls)==1:
+                text="政府は新制度を決定しました。"
+            else:
+                text=self.original
+            return {"message":{"content":
+                     __import__("json").dumps({"summary":text,"basis":"支援制度"},ensure_ascii=False)}}
+        result=editorial.write_original_brief(
+            {"title":"政府の企業支援制度"},[("NHK",self.source)],model_call=ai)
+        self.assertEqual(result,self.original)
+        self.assertEqual(len(calls),2)
+
     def test_accepts_original_ai_draft(self):
         def ai(payload):
             self.assertIn("独自原稿",payload["messages"][-1]["content"])
