@@ -20,7 +20,7 @@ permissions:
   id-token: write
 concurrency:
   group: radio-pages
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 jobs:
   publish:
     runs-on: ubuntu-latest
