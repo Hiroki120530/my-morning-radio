@@ -53,6 +53,19 @@ jobs:
       - name: Verify news narration regressions
         if: steps.freshness.outputs.skip != 'true'
         run: python -m unittest discover -s tests -v
+      - name: Install free on-runner Japanese news writer
+        if: steps.freshness.outputs.skip != 'true'
+        env:
+          OLLAMA_NUM_PARALLEL: '1'
+        run: |
+          curl --fail --silent --show-error --location https://ollama.com/install.sh | sh
+          nohup ollama serve > /tmp/radio-ollama.log 2>&1 &
+          for attempt in $(seq 1 40); do
+            if curl -fsS --max-time 2 http://127.0.0.1:11434/api/tags > /dev/null; then break; fi
+            sleep 2
+          done
+          ollama pull qwen3:1.7b
+          ollama list
       - name: Build public episode
         if: steps.freshness.outputs.skip != 'true'
         run: python scripts/generate.py
