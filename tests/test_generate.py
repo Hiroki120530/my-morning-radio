@@ -49,8 +49,8 @@ class RadioTest(unittest.TestCase):
         fresh=("中小企業を支えるための新しい制度が、政府によって決まりました。"
                "実施は2027年の予定で、対象者への案内も始まります。"
                "具体的な条件については今後の公表を待つ必要があります。")
-        with patch.object(generate,"feed_entries",return_value=[bad,good]), \\
-             patch.object(generate,"news_article",return_value=body) as read, \\
+        with patch.object(generate,"feed_entries",return_value=[bad,good]), \
+             patch.object(generate,"news_article",return_value=body) as read, \
              patch("scripts.editorial.write_original_brief",return_value=fresh) as writer:
             news=generate.get_news()
         self.assertEqual(read.call_count,1)
