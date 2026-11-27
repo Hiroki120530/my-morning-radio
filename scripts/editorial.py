@@ -14,7 +14,7 @@ import urllib.error
 import urllib.request
 from difflib import SequenceMatcher
 
-MODEL = os.getenv("RADIO_EDITOR_MODEL", "qwen3.5:2b")
+MODEL = os.getenv("RADIO_EDITOR_MODEL", "qwen3:4b")
 OLLAMA_URL = os.getenv("RADIO_OLLAMA_URL", "http://127.0.0.1:11434/api/chat")
 
 # Navigation, broadcaster service instructions and clickbait must never be
@@ -50,7 +50,7 @@ SYSTEM = """あなたは日本語の朝のニュース番組の編集者です�
 
 厳守:
 - 記事の文章を抜き出さない。元記事の文章の語順・表現を真似しない。引用・コピペ禁止。
-- 読者ではなく耳で聞くリスナー向け。自然な日本語で3〜5文、約130〜240字。
+- 読者ではなく耳で聞くリスナー向け。自然な日本語で4文、約160〜220字。1文ずつ短すぎず、完成した文を書く。
 - 初めに何が起きたか。次に確認された詳細。重要性は報道の事実から説明できる場合だけ。感想や憶測を加えない。
 - 「2人逮捕。」「発表。」「被害拡大。」などの見出し調の文を絶対に使わない。すべて「逮捕されました。」「発表しました。」など述語で完結させる。
 - 「意外と」「実は」「注目されます」「考えられます」など主観、根拠のない解釈、抽象的な結びを加えない。
@@ -158,7 +158,7 @@ def ollama_write(headline, articles, call=None, feedback=''):
             {"role":"system","content":SYSTEM},
             {"role":"user","content":"注目する話題: "+headline+"\n\n"+bundle+
              "\n\nこの資料から確認できる事実だけで、原文と異なる自然な日本語の独自原稿を書いてください。"
-             "省略しすぎず、出来事、裏付けとなる詳細、意味が分かる順番で3〜5つの完結した文にしてください。"
+             "省略しすぎず、出来事、裏付けとなる詳細、意味が分かる順番で4つの完結した文にしてください。"
              + ("\n前稿が不合格でした。"+feedback+" 同じ文章を出さず一から書き直してください。" if feedback else "")}
         ]
     }
@@ -181,7 +181,7 @@ def write_original_brief(item, articles, model_call=None):
         try:
             script=ollama_write(
                 item.get("title",""),evidence,call=model_call,
-                feedback="不自然、原文と近すぎる、または説明が短すぎます。別の言い回しで3〜5文、約150〜230字にしてください。"
+                feedback="不自然、原文と近すぎる、または説明が短すぎます。別の言い回しで4つの完全な文、約160〜220字にしてください。"
                 if attempt else ""
             ).strip()
         except (ValueError,KeyError,TypeError,urllib.error.URLError,TimeoutError) as exc:
@@ -191,4 +191,5 @@ def write_original_brief(item, articles, model_call=None):
         if not last_errors:
             return script
     print("NEWS EDITOR: story rejected",last_errors,item.get("title","")[:60],flush=True)
+    print("NEWS EDITOR DRAFT:",repr(script[:260]),flush=True)
     return ""
