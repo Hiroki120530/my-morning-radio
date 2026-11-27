@@ -33,6 +33,15 @@ class EditorialTests(unittest.TestCase):
         self.assertIn("website_or_contract_copy",
                       editorial.review_script(notice,[self.source]))
 
+    def test_rejects_headline_fragments_and_unverified_interpretation(self):
+        bad=("英皇太子夫妻の別邸に不法侵入の疑い、2人逮捕。"
+             "ノーフォークのサンドリンガムに位置する別荘で、不審な動きが発覚。"
+             "警察は捜索犬とドローンを使って2人を逮捕。"
+             "皇太子夫妻は常時住んでいないため、今回の事件は意外と発覚した。")
+        errors=editorial.review_script(bad,[self.source])
+        self.assertIn("unnatural_sentence_end",errors)
+        self.assertIn("unsupported_speculation_or_editorializing",errors)
+
     def test_rejects_long_verbatim_article_sentence(self):
         self.assertTrue(editorial.shared_passage(
             "重要です。"+self.source+"特に注目です。",self.source))
