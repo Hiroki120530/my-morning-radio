@@ -141,6 +141,9 @@ def feed_entries():
         ("NHK国際", "https://news.web.nhk/n-data/conf/na/rss/cat6.xml"),
         ("BBC日本語", "https://feeds.bbci.co.uk/japanese/rss.xml"),
         ("Yahoo主要", "https://news.yahoo.co.jp/rss/topics/top-picks.xml"),
+        ("Yahoo国内", "https://news.yahoo.co.jp/rss/topics/domestic.xml"),
+        ("Yahoo国際", "https://news.yahoo.co.jp/rss/topics/world.xml"),
+        ("Yahoo経済", "https://news.yahoo.co.jp/rss/topics/business.xml"),
         ("ITmedia", "https://news.yahoo.co.jp/rss/media/zdn_n/all.xml"),
     ]
     batches = []
@@ -258,12 +261,17 @@ def topic_groups(items, max_topics=12):
     ranked = sorted((item for item in items if editorial_score(item) >= 0),
                     key=lambda x: editorial_score(x), reverse=True)
     groups = []
+    def publisher_family(source):
+        if source.startswith("Yahoo"): return "Yahoo"
+        if source.startswith("NHK"): return "NHK"
+        return source
     for item in ranked:
         group = next((g for g in groups if same_topic(g[0]["title"], item["title"])), None)
         if group is None:
             if len(groups) < max_topics:
                 groups.append([item])
-        elif not any(other["source"] == item["source"] for other in group):
+        elif not any(publisher_family(other["source"]) == publisher_family(item["source"])
+                     for other in group):
             group.append(item)
     # A subject with independent reporting is preferred, but not required.
     groups.sort(key=lambda group: (-(1 if len(group)>1 else 0),
@@ -282,18 +290,18 @@ def get_news():
     except ModuleNotFoundError:
         from editorial import write_original_brief
     items = feed_entries()
-    groups = topic_groups(items, max_topics=14)
+    groups = topic_groups(items, max_topics=13)
     # Prefer topics independently reported by more than one publisher.
     ranked = sorted(groups, key=lambda group: (
         -(len({item["source"] for item in group}) >= 2),
         -editorial_score(group[0]),
     ))
-    candidates = [item for group in ranked[:12] for item in group[:2]]
+    candidates = [item for group in ranked[:9] for item in group[:2]]
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as pool:
         articles = list(pool.map(news_article, candidates))
     by_url = {item["url"]: article for item, article in zip(candidates, articles)}
     stories = []
-    for group in ranked[:12]:
+    for group in ranked[:9]:
         evidence = []
         for item in group[:2]:
             body = by_url.get(item["url"], "")
