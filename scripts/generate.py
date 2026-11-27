@@ -113,6 +113,8 @@ def news_article(item):
 # any final script containing these fragments.
 NEWS_BOILERPLATE = (
     "地図から選ぶ", "NHK ONE", "どなたでもご利用になれます",
+    "受信契約がお済み", "契約をされていない世帯",
+    "別途の契約や追加のご負担", "放送法に基づき契約",
     "エリアから選ぶ", "カテゴリから選ぶ", "地域から選ぶ",
     "新規会員登録", "ログイン", "マイページ", "アクセスランキング",
     "この記事をシェア", "この記事に関する", "ご利用いただけます",
@@ -133,79 +135,6 @@ def _words(text):
     return set(re.findall(r"[一-龯]{2,}|[ァ-ヴー]{3,}|[a-zA-Z]{4,}|[0-9]{2,}", text))
 
 
-def article_brief(article, title=""):
-    """Create a short *conservative* audio brief from actual article facts.
-
-    This is a free deterministic summarizer, not an LLM. It removes page
-    furniture, ranks factual sentences, and makes a short original connective
-    narrative without inventing causes or consequences. Keep source excerpts
-    brief to avoid merely reading the publisher's entire article.
-    """
-    title_terms = _words(title)
-    text = html.unescape(article or "")
-    # Some sites return page furniture without newlines or full stops. Cut
-    # paragraphs before promoting candidate sentences.
-    for garbage in META_SENTENCES:
-        text = text.replace(garbage, " ")
-    sentences = re.split(r"(?<=[。！？!?])\s*|[\r\n]+", text)
-    candidates = []
-    for index, raw in enumerate(sentences):
-        s = re.sub(r"\\s+", " ", raw).strip(" ・-　")
-        if not (27 <= len(s) <= 185):
-            continue
-        if any(term.casefold() in s.casefold() for term in NEWS_BOILERPLATE) or VISUAL_TEASER.search(s):
-            continue
-        if re.search(r"(Copyright|All Rights Reserved|©|シェア|提供しています|ブラウザー|ログイン|アプリをダウンロード)", s, re.I):
-            continue
-        # Article text often has fragments without context. Only keep
-        # reasonably complete prose sentences ending with Japanese punctuation.
-        if not s.endswith(("。", "！", "？")):
-            continue
-        if re.search(r"(こちら|以下|上記|下記|このページ|ここをクリック)", s):
-            continue
-        tokens = _words(s)
-        shared = len(title_terms & tokens)
-        if title_terms and shared == 0 and index > 4:
-            continue
-        facts = len(re.findall(r"[0-9０-９]+(?:年|月|日|人|件|円|％|%|回|社|倍|度)", s))
-        score = shared * 4 + facts * 1.5 + (2 if index < 3 else 0) - index * 0.18
-        candidates.append((score, index, s))
-    if not candidates:
-        return ""
-    candidates.sort(key=lambda row: (-row[0], row[1]))
-    chosen = []
-    for _, index, s in candidates:
-        if any(s[:28] == existing[1][:28] or len(_words(s) & _words(existing[1])) >= max(5, len(_words(s)) * 0.75)
-               for existing in chosen):
-            continue
-        chosen.append((index, s))
-        if len(chosen) == 3:
-            break
-    if len(chosen) < 2:
-        return ""
-    chosen.sort()
-    # Brief enough to summarize, not to perform full-article reading.
-    # Prefix is original and provides a seamless narration. Editors should
-    # later replace this heuristic with an actual local Japanese summarizer.
-    # IMPORTANT: never slice Japanese text at a character limit. It caused
-    # the narrator to stop halfway through a kanji word or leave off okurigana.
-    # Pick whole sentences only; if the next sentence exceeds the budget,
-    # discard that sentence, not its final characters.
-    selected = []
-    total = 0
-    for _, sentence in chosen:
-        if total + len(sentence) > 320:
-            continue
-        selected.append(sentence.rstrip())
-        total += len(sentence)
-    brief = " ".join(selected).strip()
-    if len(brief) < 85 or not brief.endswith(("。","！","？")):
-        return ""
-    if any(word.casefold() in brief.casefold() for word in NEWS_BOILERPLATE + META_SENTENCES):
-        return ""
-    return brief
-
-
 def feed_entries():
     feeds = [
         ("NHK", "https://news.web.nhk/n-data/conf/na/rss/cat0.xml"),
@@ -221,7 +150,7 @@ def feed_entries():
         except Exception:
             continue
         current = []
-        for row in root.findall(".//channel/item")[:12]:
+        for row in root.findall(".//channel/item")[:22]:
             title = clean_news_text(row.findtext("title"))[:160]
             link = clean_news_text(row.findtext("link"))
             description = clean_news_text(row.findtext("description"))[:700]
@@ -233,7 +162,7 @@ def feed_entries():
         if current: batches.append(current)
     # Interleave sources: don't let a single broadcaster use all 16 slots.
     result = []
-    for index in range(12):
+    for index in range(22):
         for batch in batches:
             if index < len(batch): result.append(batch[index])
     return result
@@ -342,75 +271,56 @@ def topic_groups(items, max_topics=12):
     return groups
 
 
-def merge_briefs(primary, supporting):
-    """Make an audio-friendly short synthesis without inventing extra facts.
-
-    Use up to two factual units from the main report and an independently
-    reported, non-duplicate unit from a second publisher, if available.
-    We avoid pretending that a free extractive heuristic is a full LLM
-    reporter; unsupported speculation is never inserted.
-    """
-    lead = primary["detail"].rstrip(" 。")
-    if not supporting:
-        return lead + "。"
-    other = supporting["detail"].rstrip(" 。")
-    # Only include complementary detail when text is measurably different.
-    a, b = topic_fingerprint(lead), topic_fingerprint(other)
-    if not b or len(a & b) / max(1, len(b)) > 0.7:
-        return lead + "。"
-    units = re.split(r"(?<=[。！？])", other)
-    for fact in units:
-        fact = fact.strip(" 。")
-        if len(fact) < 30 or VISUAL_TEASER.search(fact):
-            continue
-        if any(term in fact for term in NEWS_BOILERPLATE):
-            continue
-        fgrams = topic_fingerprint(fact)
-        if fgrams and len( a & fgrams ) / len(fgrams) < 0.55:
-            return lead + "。また、" + fact + "。"
-    return lead + "。"
-
-
 def get_news():
-    entries = feed_entries()
-    groups = topic_groups(entries)
-    # Editorial discovery starts with headlines, not a commitment to one
-    # publication's article. Collect distinct sources for each topic.
-    candidates = []
-    for group in groups:
-        candidates.extend(group[:2])
-    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
+    """Select topics, research articles, and let local AI write fresh narration.
+
+    The source article sentences never become the aired script. If the
+    independent editor or original-writing checks fail, omit that story.
+    """
+    try:
+        from scripts.editorial import write_original_brief
+    except ModuleNotFoundError:
+        from editorial import write_original_brief
+    items = feed_entries()
+    groups = topic_groups(items, max_topics=14)
+    # Prefer topics independently reported by more than one publisher.
+    ranked = sorted(groups, key=lambda group: (
+        -(len({item["source"] for item in group}) >= 2),
+        -editorial_score(group[0]),
+    ))
+    candidates = [item for group in ranked[:12] for item in group[:2]]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as pool:
         articles = list(pool.map(news_article, candidates))
     by_url = {item["url"]: article for item, article in zip(candidates, articles)}
-    results = []
-    used_topics = []
-    for group in groups:
-        chosen = []
+    stories = []
+    for group in ranked[:12]:
+        evidence = []
         for item in group[:2]:
-            detail = article_brief(by_url.get(item["url"], ""), item["title"])
-            if useful_news(item, detail):
-                chosen.append({**item, "detail": detail})
-        if not chosen:
+            body = by_url.get(item["url"], "")
+            if len(body) >= 180:
+                evidence.append((item["source"], body))
+        if not evidence:
             continue
-        if any(same_topic(old, chosen[0]["title"]) for old in used_topics):
+        detail = write_original_brief(group[0], evidence)
+        if not detail:
             continue
-        digest = merge_briefs(chosen[0], chosen[1] if len(chosen) > 1 else None)
-        if not useful_news(chosen[0], digest):
-            continue
-        result = dict(chosen[0])
-        result["detail"] = digest
-        result["verified_article"] = True
-        result["source_count"] = len(chosen)
-        # Internal evidence only; never force listeners to open source pages.
-        result["checked_sources"] = [{"name": x["source"], "url": x["url"]}
-                                     for x in chosen]
-        results.append(result)
-        used_topics.append(result["title"])
-        if len(results) >= 4:
+        story = dict(group[0])
+        story["detail"] = detail
+        story["source_count"] = len(evidence)
+        story["editorial_method"] = "local_ai_original"
+        story["verified_article"] = True
+        story["checked_sources"] = [
+            {"name": item["source"], "url": item["url"]}
+            for item in group[:2] if by_url.get(item["url"], "")
+        ]
+        stories.append(story)
+        if len(stories) >= 4:
             break
-    print(f"NEWS EDITORIAL: feed={len(entries)} topics={len(groups)} aired={len(results)} "
-          f"multi_source={sum(x['source_count']>1 for x in results)}", flush=True)
-    return results
+    print(f"NEWS EDITORIAL: feed={len(items)} topics={len(groups)} "
+          f"aired={len(stories)} multireported={sum(x['source_count']>1 for x in stories)}",
+          flush=True)
+    return stories
+
 
 def music(today):
     """Select two verified preview tracks from artists absent in favorites."""
