@@ -59,7 +59,7 @@ class EditorialTests(unittest.TestCase):
 
     def test_accepts_original_ai_draft(self):
         def ai(payload):
-            self.assertIn("別の",payload["messages"][-1]["content"])
+            self.assertIn("独自原稿",payload["messages"][-1]["content"])
             return {"message":{"content":
                     __import__("json").dumps({"summary":self.original,"basis":"制度創設"},ensure_ascii=False)}}
         result=editorial.write_original_brief(
